@@ -1,0 +1,3 @@
+lark
+pydub
+audioop-lts
