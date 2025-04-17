@@ -148,10 +148,12 @@ def play(song: Song, output_name: str | None = None) -> None:
             harmony_audio = AudioSegment.silent(duration=duration)
 
             for note in item:
-                note_audio = Sine(note.frequency).to_audio_segment(duration=note.time).fade_in(10).fade_out(10)
+                note_audio = Sine(note.frequency).to_audio_segment(duration=note.time).fade_in(15).fade_out(15)
                 harmony_audio = harmony_audio.overlay(note_audio)
 
             combined += harmony_audio
+
+    combined += AudioSegment.silent(duration=100)
 
     combined.export(output_name + ".wav", format="wav")
 
@@ -214,6 +216,8 @@ def transform_parse_tree(tree: Tree) -> Expression:
         case Tree(data="time", children=[Token(type="NUMBER", value=seconds)]):
             return int(seconds)
         case Tree(data="time", children=[Tree(data="fraction", children=[Token(type="NUMBER", value=num), Token(type="NUMBER", value=den)])]):
+
+
             return float(int(num) / int(den))
         case Tree(data="note_with_modifier", children=[
                 Token(type="NOTE", value=name),
@@ -255,7 +259,7 @@ def main():
         with open(sys.argv[1], "r") as file:
             song = evaluate(parse_ast(file.read()), env)
             print(song)
-            play(song)
+            play(song, sys.argv[1].split(".")[0])
     except IndexError:
         while True:
             to_eval = input("Enter an expression (write 'exit' to quit).\n>>> ")
