@@ -14,8 +14,14 @@ from pydub.generators import Sine
 type NoteName = Literal["A", "B", "C", "D", "E", "F", "G"]
 type NoteModifier = Literal["#", "b"]
 
+# Default name for the output file when no specific
+# name is provided and the REPL is active.
 DEFAULT_OUTPUT_NAME = "output.wav"
+
+# 12th root of 2 -- used for shift pitch by semitones
 SEMITONE_RATIO = 1.0594631
+
+# Frequencies of the 4th octave notes (A4 up to G4)
 NOTE_FREQUENCIES = {
     "A": 440.00, "B": 493.88, "C": 261.63, "D": 293.66,
     "E": 329.63, "F": 349.23, "G": 392.00
@@ -24,11 +30,34 @@ NOTE_FREQUENCIES = {
 
 @dataclass
 class Note:
+    """
+    A dataclass representing a musical note with a set frequency and duration (time) in milliseconds.
+
+    Attributes:
+        frequency (float): The frequency of the note in Hz.
+        time (int): The duration of the note in milliseconds (default is 1000 ms).
+    """
     frequency: float
     time: int = 1000  # ms
 
     @staticmethod
     def generate(name: NoteName, octave: int, modifier: NoteModifier | None = None):
+        """
+        Generate a Note object based on the given note name, octave, and optional modifier (diesis or flat). It yields the
+        note according to the frequencies stored in `NOTE_FREQUENCIES`.
+
+        Args:
+            name (NoteName): The name of the note ("A", "B", "C", "D", "E", "F", or "G").
+            octave (int): The octave in which the note belongs.
+            modifier (NoteModifier | None): Optional modifier for the note ("#" for sharp, "b" for flat, or `None` for the normal note).
+
+        Returns:
+            Note: A Note object with the calculated frequency and default time of 1000 ms.
+
+        Example:
+            Note.generate("A", 4)  # Returns the Note object for A4.
+            Note.generate("C", 4, "#")  # Returns the Note object for C#4.
+        """
         frequency = NOTE_FREQUENCIES[name] * (2 ** (int(octave) - 4))
 
         if modifier == "#":
@@ -39,32 +68,93 @@ class Note:
         return Note(frequency=round(frequency, 2), time=1000)
 
     def transposed(self, value: int) -> Note:
+        """
+        Transpose the current note by a given number of semitones.
+
+        Args:
+            value (int): The number of semitones to transpose. Positive values transpose the note up, 
+                         and negative values transpose it down. The new frequency is calculated as
+                         `NEW_FREQUENCY = OLD_FREQUENCY * SEMITONE_RATIO ** value`.
+        Returns:
+            Note: A new Note object with the transposed frequency and the same duration.
+
+        Example:
+            note = Note.generate("A", 4)  # A4
+            transposed_note = note.transposed(2)  # Transposes A4 to B4.
+        """
         return Note(frequency=round(self.frequency * (SEMITONE_RATIO ** value), 2), time=self.time)
 
     def change_time(self, value: float) -> Note:
+        """
+        Change the duration of the note by a given factor.
+
+        Args:
+            value (float): The factor by which the duration of the note is changed. For example, a value
+                           of 2.0 will double the duration, while 0.5 will halve it.
+        Returns:
+            Note: A new Note object with the adjusted duration and the same frequency.
+
+        Example:
+            note = Note.generate("A", 4)  # A4
+            longer_note = note.change_time(2.0)  # Doubles the duration of A4.
+        """
         return Note(frequency=self.frequency, time=self.time * value)
 
     def set_time(self, time: float):
+        """
+        Set the duration of the note to a new value.
+
+        Args:
+            time (float): The new duration of the note, in seconds. It is automatically converted to milliseconds.
+
+        Example:
+            note = Note.generate("A", 4)  # A4
+            note.set_time(1.5)  # Sets the note's duration to 1.5 seconds (1500 ms).
+        """
         self.time = int(time * 1000)
 
 
 @dataclass
 class Pause:
-    time: int
+    """
+    A dataclass representing a period of silence in a song.
+
+    Attributes:
+        time (int): The duration of the pause in milliseconds.
+    """
+
+    time: int  # ms
 
 
 type Harmony = List[Note]
 
+# Song represents the only type MICIO handles, stores, and
+# returns. Each song is simply a list of harmonies or
+# pauses.
 type Song = List[Harmony | Pause]
 
 
 @dataclass
 class Var:
+    """
+    A dataclass representing a variable that can be used in the musical expressions.
+
+    Attributes:
+        name (str): The name of the variable.
+    """
     name: str
 
 
 @dataclass
 class Let:
+    """
+    A dataclass representing a 'LET' expression which binds a value to a variable within a scope.
+
+    Attributes:
+        var (Var): The variable being defined.
+        value (Expression): The value being assigned to the variable.
+        expr (Expression): The expression that will be evaluated using the defined variable.
+    """
     var: Var
     value: Expression
     expr: Expression
@@ -72,18 +162,43 @@ class Let:
 
 @dataclass
 class Concat:
+    """
+    A dataclass representing the concatenation of two musical expressions.
+    This allows combining different parts of a song.
+
+    Attributes:
+        left (Expression): The first part of the expression.
+        right (Expression): The second part of the expression.
+    """
     left: Expression
     right: Expression
 
 
 @dataclass
 class Transpose:
+    """
+    A dataclass representing a transpose operation applied to a song,
+    shifting all the notes by a specific number of semitones.
+
+    Attributes:
+        song (Expression): The song or part of the song to be transposed.
+        value (int): The number of semitones to transpose. Positive values transpose upwards, negative values downwards.
+                     The new frequency is calculated as `NEW_FREQUENCY = OLD_FREQUENCY * SEMITONE_RATIO ** value`.
+    """
     song: Expression
     value: int
 
 
 @dataclass
 class ChangeTime:
+    """
+    A dataclass representing a change in the timing of a song by a given factor.
+
+    Attributes:
+        song (Expression): The song or part of the song whose timing is to be changed.
+        value (float): The factor by which the duration of the note is changed.
+                       For example, 2.0 doubles the time, and 0.5 halves it.
+    """
     song: Expression
     value: float
 
@@ -92,8 +207,13 @@ type Expression = Song | Let | Concat | Transpose | Var | ChangeTime
 
 type Environment = dict[str, Song]
 
-env = {}
+# A dictionary that maps variable names to
+# their corresponding songs.
+env: Environment = {}
 
+
+# The grammar defining the structure of the musical expressions
+# accepted by the parser.
 grammar = r"""
     ?expr: concat | mono | let
     mono: step | transpose | paren | var | changetime
@@ -139,7 +259,16 @@ grammar = r"""
 parser = Lark(grammar, start="expr")
 
 
-def play(song: Song, output_name: str | None = None) -> None:
+def export_song(song: Song, output_name: str | None = None) -> None:
+    """
+    Exports the given song as a `.wav` file. The function combines harmonies,
+    handles pauses, and generates the audio for each note in the song.
+    It uses `AudioSegment` and `Sine` from `pydub` to create, mix and overlay the audio.
+
+    Args:
+        song (Song): The song to be exported, represented as a sequence of harmonies and pauses.
+        output_name (str | None): The name of the output file. If `None`, the `DEFAULT_OUTPUT_NAME` is used.
+    """
     global DEFAULT_OUTPUT_NAME
 
     if not output_name:
@@ -169,6 +298,19 @@ def play(song: Song, output_name: str | None = None) -> None:
 
 
 def transpose(song: Song, value: int) -> Song:
+    """
+    Transposes the song by shifting all notes by the specified number of semitones.
+
+    This function iterates over the song and applies `Note.transposed` to each note, shifting its frequency 
+    according to the given value.
+
+    Args:
+        song (Song): The song to be transposed.
+        value (int): The number of semitones to transpose. Positive values transpose upwards, negative values downwards.
+
+    Returns:
+        Song: A new song with the transposed notes, maintaining the original structure and timing of harmonies and pauses.
+    """
     transposed = []
 
     for step in song:
@@ -180,7 +322,17 @@ def transpose(song: Song, value: int) -> Song:
     return transposed
 
 
-def changetime(song: Song, value: float) -> Song:
+def change_time(song: Song, value: float) -> Song:
+    """
+    Changes the duration of all notes in the song by multiplying their duration by the specified factor.
+
+    Args:
+        song (Song): The song whose note durations are to be changed.
+        value (float): The factor by which to change the duration (e.g., 2.0 for 2x, 0.5 for 0.5x).
+
+    Returns:
+        Song: The song with adjusted note durations.
+    """
     changed = []
     for step in song:
         if isinstance(step, list):
@@ -191,6 +343,15 @@ def changetime(song: Song, value: float) -> Song:
 
 
 def transform_parse_tree(tree: Tree) -> Expression:
+    """
+    Transforms the parse tree produced by the parser into a structured musical expression.
+
+    Args:
+        tree (Tree): The parse tree generated by the Lark parser.
+
+    Returns:
+        Expression: The corresponding musical expression.
+    """
     match tree:
         case Tree(data="expr", children=[subtree]):
             return transform_parse_tree(subtree)
@@ -252,11 +413,32 @@ def transform_parse_tree(tree: Tree) -> Expression:
 
 
 def parse_ast(expression: str) -> Expression:
+    """
+    Parses the input string expression into an abstract syntax tree (AST) made of
+    dataclasses.
+
+    Args:
+        expression (str): The string expression to be parsed.
+
+    Returns:
+        Expression: The resulting abstract syntax tree representing the musical expression.
+    """
     parse_tree = parser.parse(expression)
     return transform_parse_tree(parse_tree)
 
 
-def evaluate(ast: Expression, env: Environment) -> Song | None:
+def evaluate(ast: Expression, env: Environment) -> Song:
+    """
+    Evaluates an abstract syntax tree (AST) in the form of an `Expression` to produce a song,
+    using the given environment.
+
+    Args:
+        ast (Expression): The abstract syntax tree to be evaluated.
+        env (Environment): The current environment, which maps variable names to song values.
+
+    Returns:
+        Song: The resulting song.
+    """
     match ast:
         case Let(var=var, value=value, expr=expr):
             temporary_env = env.copy()
@@ -267,17 +449,29 @@ def evaluate(ast: Expression, env: Environment) -> Song | None:
         case Transpose(song=music, value=value):
             return transpose(evaluate(music, env), value)
         case ChangeTime(song=music, value=value):
-            return changetime(evaluate(music, env), value)
+            return change_time(evaluate(music, env), value)
         case Var(name=name):
             if name in env.keys():
                 return env[name]
 
             raise NameError(f"Variable '{name}' is not defined")
         case _:
-            return ast
+            if isinstance(ast, list) and all(isinstance(item, Pause) or (isinstance(item, List) and all(isinstance(nested_item, Note) for nested_item in item)) for item in ast):
+                return ast
+
+            raise TypeError("The evaluated expression is not a song")
 
 
 def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -> None:
+    """
+    Evaluates the provided code and outputs the resulting song to a file.
+    If the evaluation is successful, the resulting song is played and exported to a `.wav` file.
+
+    Args:
+        code (str): The code to be evaluated.
+        output_file (str): The name of the output file.
+        sysexit_on_error (bool): Whether to exit the program on error.
+    """
     try:
         ast = parse_ast(code)
     except Exception as e:
@@ -301,7 +495,7 @@ def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -
     # print(song)
 
     try:
-        play(song, output_file)
+        export_song(song, output_file)
     except Exception as e:
         print(f"Conversion error: {e}")
 
@@ -310,6 +504,16 @@ def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -
 
 
 def main():
+    """
+    The main entry point of the program, called only if this file has been executed directly through
+    the Python interpreter. It handles command-line arguments and calls the musical code evaluation.
+
+    The program can either (depending on the command-line arguments):
+    - Process an input file containing musical code.
+    - Enter a REPL (Read-Eval-Print Loop) where the user can input musical expressions interactively.
+
+    The program then evaluates the code and generates the corresponding song in `.wav` format.
+    """
     parser = argparse.ArgumentParser(
         description="MICIO - A Musical Interpreter for Chord Interpretation and Orchestration, completely written in Python 3."
     )

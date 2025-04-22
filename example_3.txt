@@ -6,4 +6,4 @@ LET y = (
             (G3, 1/2) -> x -> (E4, 1/4) ->
             (C4, 1/4) -> PAUSE(3/2) -> (G3, 1/2),
         12)
-) IN CHANGETIME(y, 1/4) -> CHANGETIME(y, 1/2) -> y -> CHANGETIME(y, 2)
+) IN CHANGETIME(y, 1/2) -> y -> CHANGETIME(y, 2)
