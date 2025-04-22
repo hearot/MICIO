@@ -207,7 +207,7 @@ type Expression = Song | Let | Concat | Transpose | Var | ChangeTime
 
 type Environment = dict[str, Song]
 
-# A dictionary that maps variable names to
+# The default dictionary, which maps variable names to
 # their corresponding songs.
 env: Environment = {}
 
@@ -274,24 +274,27 @@ def export_song(song: Song, output_name: str | None = None) -> None:
     if not output_name:
         output_name = DEFAULT_OUTPUT_NAME
 
-    combined = AudioSegment.silent(duration=0)
+    combined = AudioSegment.silent(duration=0)  # default segment
 
     for item in song:
         if isinstance(item, Pause):
-            pause_audio = AudioSegment.silent(
-                duration=item.time)
-            combined += pause_audio
+            combined += AudioSegment.silent(
+                duration=item.time)  # adds a pause to the song, according to the evaluated expression
         else:
+            # get the duration of the current harmony
             duration = max(note.time for note in item)
+            # set the base segment which all the notes are going to be overlaid on
             harmony_audio = AudioSegment.silent(duration=duration)
 
             for note in item:
                 note_audio = Sine(note.frequency).to_audio_segment(
+                    # generate the sine wave of the note, with a fade in and fade out of 15ms
                     duration=note.time).fade_in(15).fade_out(15)
                 harmony_audio = harmony_audio.overlay(note_audio)
 
-            combined += harmony_audio
+            combined += harmony_audio  # adds the segment to the final song
 
+    # add a final silent segment for 100ms
     combined += AudioSegment.silent(duration=100)
 
     combined.export(output_name, format="wav")
@@ -355,57 +358,83 @@ def transform_parse_tree(tree: Tree) -> Expression:
     match tree:
         case Tree(data="expr", children=[subtree]):
             return transform_parse_tree(subtree)
+
         case Tree(data="concat", children=[left, right]):
             return Concat(left=transform_parse_tree(left), right=transform_parse_tree(right))
+
         case Tree(data="mono", children=[subtree]):
             return transform_parse_tree(subtree)
+
         case Tree(data="let", children=[Token(type="IDENTIFIER", value=var), value, expr]):
             return Let(var=var, value=transform_parse_tree(value), expr=transform_parse_tree(expr))
+
         case Tree(data="step", children=[subtree]):
+            # A step is a single harmony or a pause, but internally is already
+            # regarded as a song with that single harmony/pause, i.e. [A4] is already
+            # seen as [[A4]].
             return [transform_parse_tree(subtree)]
+
         case Tree(data="transpose", children=[subtree, Token(type="TRANSPOSE_VALUE", value=value)]):
             return Transpose(song=transform_parse_tree(subtree), value=int(value))
+
         case Tree(data="changetime", children=[subtree, time]):
             return ChangeTime(song=transform_parse_tree(subtree), value=transform_parse_tree(time))
+
         case Tree(data="paren", children=[subtree]):
             return transform_parse_tree(subtree)
+
         case Tree(data="var", children=[Token(type="IDENTIFIER", value=name)]):
             return Var(name=name)
+
         case Tree(data="step", children=[subtree]):
             return transform_parse_tree(subtree)
+
         case Tree(data="harmony", children=[subtree]):
             match subtree:
                 case Tree(data="note") | Tree(data="note_time"):
+                    # A single note is already regarded as an harmony, i.e.
+                    # internally A4 is regarded as the harmony [A4].
                     return [transform_parse_tree(subtree)]
                 case Tree(data="sequence_notes"):
                     return transform_parse_tree(subtree)
+
         case Tree(data="pause", children=[time]):
             return Pause(time=int(1000 * transform_parse_tree(time)))
+
         case Tree(data="mono_note", children=[subtree]):
             return transform_parse_tree(subtree)
+
         case Tree(data="sequence_notes", children=[mono_note, *sub_notes]):
             notes = [transform_parse_tree(mono_note)]
 
+            # `sub_notes` is empty if `mono_note` is the last of its list.
+            # If not, the harmony is extended recursively by transforming
+            # `sub_notes`.
             if sub_notes:
                 notes.extend(transform_parse_tree(sub_notes[0]))
 
             return notes
+
         case Tree(data="note", children=[subtree]):
             return transform_parse_tree(subtree)
+
         case Tree(data="note_time", children=[note, time]):
             note = transform_parse_tree(note)
             note.set_time(transform_parse_tree(time))
             return note
+
         case Tree(data="time", children=[Token(type="NUMBER", value=seconds)]):
             return int(seconds)
-        case Tree(data="time", children=[Tree(data="fraction", children=[Token(type="NUMBER", value=num), Token(type="NUMBER", value=den)])]):
 
+        case Tree(data="time", children=[Tree(data="fraction", children=[Token(type="NUMBER", value=num), Token(type="NUMBER", value=den)])]):
             return float(int(num) / int(den))
+
         case Tree(data="note_with_modifier", children=[
                 Token(type="NOTE", value=name),
                 Token(type="MODIFIER", value=modifier),
                 Token(type="NUMBER", value=octave)]):
             return Note.generate(name=name, octave=int(octave), modifier=modifier)
+
         case Tree(data="note_without_modifier", children=[
                 Token(type="NOTE", value=name),
                 Token(type="NUMBER", value=octave)]):
@@ -441,22 +470,44 @@ def evaluate(ast: Expression, env: Environment) -> Song:
     """
     match ast:
         case Let(var=var, value=value, expr=expr):
+            # Creates the temporary environment, which will
+            # be used to evaluate the expression of the `Let`
+            # construct.
             temporary_env = env.copy()
             temporary_env[var] = evaluate(value, env)
+
             return evaluate(expr, temporary_env)
+
         case Concat(left=left, right=right):
             return evaluate(left, env) + evaluate(right, env)
+
         case Transpose(song=music, value=value):
             return transpose(evaluate(music, env), value)
+
         case ChangeTime(song=music, value=value):
             return change_time(evaluate(music, env), value)
+
+        # Look up the value of the variable in the environment.
         case Var(name=name):
             if name in env.keys():
                 return env[name]
 
             raise NameError(f"Variable '{name}' is not defined")
+
         case _:
-            if isinstance(ast, list) and all(isinstance(item, Pause) or (isinstance(item, List) and all(isinstance(nested_item, Note) for nested_item in item)) for item in ast):
+            # Checks if `ast` is a Song, i.e. a list of harmonies or pauses.
+            if (isinstance(ast, list)  # a song must be a list
+                and
+                all(
+                    isinstance(item, Pause)
+                    or
+                    (
+                        isinstance(item, List)  # an harmony must be a list
+                        and
+                        # all the elems of the harmony must be notes
+                        all(isinstance(nested_item, Note)
+                            for nested_item in item)
+                    ) for item in ast)):
                 return ast
 
             raise TypeError("The evaluated expression is not a song")
@@ -530,6 +581,8 @@ def main():
 
     args = parser.parse_args()
 
+    # If a filename is given and the output is not, use `filename.wav` as the
+    # output file name (given that `filename.ext` is the code file name).
     if args.output == DEFAULT_OUTPUT_NAME and args.filename:
         output = args.filename.split(".")[0] + ".wav"
     else:
@@ -554,7 +607,7 @@ def main():
             sys.exit(1)
     else:
         try:
-            while True:
+            while True:  # REPL
                 to_eval = input(
                     "Enter an expression (write 'exit' to quit).\n>>> ")
 
