@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Literal
 
+import argparse
 import sys
 
 from lark import Lark, Token, Tree
@@ -13,14 +14,12 @@ from pydub.generators import Sine
 type NoteName = Literal["A", "B", "C", "D", "E", "F", "G"]
 type NoteModifier = Literal["#", "b"]
 
-note_frequencies = {
+DEFAULT_OUTPUT_NAME = "output.wav"
+SEMITONE_RATIO = 1.0594631
+NOTE_FREQUENCIES = {
     "A": 440.00, "B": 493.88, "C": 261.63, "D": 293.66,
     "E": 329.63, "F": 349.23, "G": 392.00
 }
-
-semitone_ratio = 1.0594631
-
-default_output_name = "output"
 
 
 @dataclass
@@ -30,21 +29,21 @@ class Note:
 
     @staticmethod
     def generate(name: NoteName, octave: int, modifier: NoteModifier | None = None):
-        frequency = note_frequencies[name] * (2 ** (int(octave) - 4))
+        frequency = NOTE_FREQUENCIES[name] * (2 ** (int(octave) - 4))
 
         if modifier == "#":
-            frequency *= semitone_ratio
+            frequency *= SEMITONE_RATIO
         elif modifier == "b":
-            frequency /= semitone_ratio
+            frequency /= SEMITONE_RATIO
 
         return Note(frequency=round(frequency, 2), time=1000)
 
     def transposed(self, value: int) -> Note:
-        return Note(frequency=round(self.frequency * (semitone_ratio ** value), 2), time=self.time)
+        return Note(frequency=round(self.frequency * (SEMITONE_RATIO ** value), 2), time=self.time)
 
     def change_time(self, value: float) -> Note:
-        return Note(frequency=self.frequency, time=time.self * value)
-    
+        return Note(frequency=self.frequency, time=self.time * value)
+
     def set_time(self, time: float):
         self.time = int(time * 1000)
 
@@ -82,10 +81,12 @@ class Transpose:
     song: Expression
     value: int
 
-@dataclass 
+
+@dataclass
 class ChangeTime:
     song: Expression
     value: float
+
 
 type Expression = Song | Let | Concat | Transpose | Var | ChangeTime
 
@@ -139,10 +140,10 @@ parser = Lark(grammar, start="expr")
 
 
 def play(song: Song, output_name: str | None = None) -> None:
-    global default_output_name
+    global DEFAULT_OUTPUT_NAME
 
     if not output_name:
-        output_name = default_output_name
+        output_name = DEFAULT_OUTPUT_NAME
 
     combined = AudioSegment.silent(duration=0)
 
@@ -156,14 +157,15 @@ def play(song: Song, output_name: str | None = None) -> None:
             harmony_audio = AudioSegment.silent(duration=duration)
 
             for note in item:
-                note_audio = Sine(note.frequency).to_audio_segment(duration=note.time).fade_in(15).fade_out(15)
+                note_audio = Sine(note.frequency).to_audio_segment(
+                    duration=note.time).fade_in(15).fade_out(15)
                 harmony_audio = harmony_audio.overlay(note_audio)
 
             combined += harmony_audio
 
     combined += AudioSegment.silent(duration=100)
 
-    combined.export(output_name + ".wav", format="wav")
+    combined.export(output_name, format="wav")
 
 
 def transpose(song: Song, value: int) -> Song:
@@ -177,6 +179,7 @@ def transpose(song: Song, value: int) -> Song:
 
     return transposed
 
+
 def changetime(song: Song, value: float) -> Song:
     changed = []
     for step in song:
@@ -185,6 +188,7 @@ def changetime(song: Song, value: float) -> Song:
         else:
             changed.append(step)
     return changed
+
 
 def transform_parse_tree(tree: Tree) -> Expression:
     match tree:
@@ -235,7 +239,6 @@ def transform_parse_tree(tree: Tree) -> Expression:
             return int(seconds)
         case Tree(data="time", children=[Tree(data="fraction", children=[Token(type="NUMBER", value=num), Token(type="NUMBER", value=den)])]):
 
-
             return float(int(num) / int(den))
         case Tree(data="note_with_modifier", children=[
                 Token(type="NOTE", value=name),
@@ -264,7 +267,7 @@ def evaluate(ast: Expression, env: Environment) -> Song | None:
         case Transpose(song=music, value=value):
             return transpose(evaluate(music, env), value)
         case ChangeTime(song=music, value=value):
-            return changetime(evaluate(music,env), value)
+            return changetime(evaluate(music, env), value)
         case Var(name=name):
             if name in env.keys():
                 return env[name]
@@ -274,28 +277,89 @@ def evaluate(ast: Expression, env: Environment) -> Song | None:
             return ast
 
 
-def main():
+def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -> None:
     try:
-        with open(sys.argv[1], "r") as file:
-            song = evaluate(parse_ast(file.read()), env)
-            print(song)
-            play(song, sys.argv[1].split(".")[0])
-    except IndexError:
-        while True:
-            to_eval = input("Enter an expression (write 'exit' to quit).\n>>> ")
+        ast = parse_ast(code)
+    except Exception as e:
+        print(f"Syntax error: {e}")
 
-            if to_eval == "exit":
-                break
-            else:
-                try:
-                    song = evaluate(parse_ast(to_eval), env)
-                    print(song)
-                    play(song)
-                except Exception as e:
-                    print(e)
-    except FileNotFoundError:
-        print("File not found.")
-        exit(1)
+        if sysexit_on_error:
+            sys.exit(1)
+        else:
+            return
+
+    try:
+        song = evaluate(ast, env)
+    except Exception as e:
+        print(f"Runtime error: {e}")
+
+        if sysexit_on_error:
+            sys.exit(1)
+        else:
+            return
+
+    # print(song)
+
+    try:
+        play(song, output_file)
+    except Exception as e:
+        print(f"Conversion error: {e}")
+
+        if sysexit_on_error:
+            sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="MICIO - A Musical Interpreter for Chord Interpretation and Orchestration, completely written in Python 3."
+    )
+
+    parser.add_argument(
+        "filename", nargs="?", help="the file that needs to be converted to the Waveform Audio File (WAVE, '.wav') format (default is a REPL)."
+    )
+
+    parser.add_argument(
+        "-o", "--output",
+        default=DEFAULT_OUTPUT_NAME,
+        help=f"set the output file name (default is '{DEFAULT_OUTPUT_NAME}' for a REPL, and 'filename.wav' for 'filename.ext' as filename); if the output file is '{DEFAULT_OUTPUT_NAME}', it is handled as the default case."
+    )
+
+    args = parser.parse_args()
+
+    if args.output == DEFAULT_OUTPUT_NAME and args.filename:
+        output = args.filename.split(".")[0] + ".wav"
+    else:
+        output = args.output
+
+    if args.filename:
+        try:
+            with open(args.filename, "r") as file:
+                code = file.read()
+                evaluate_code(code, output, sysexit_on_error=True)
+        except FileNotFoundError:
+            print(f"Error: File '{args.filename}' not found.")
+            sys.exit(1)
+        except PermissionError:
+            print(
+                f"Error: You don't have permission to read '{args.filename}'.")
+            sys.exit(1)
+        except IOError as e:
+            print(f"Unexpected I/O error: {e}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            sys.exit(1)
+    else:
+        try:
+            while True:
+                to_eval = input(
+                    "Enter an expression (write 'exit' to quit).\n>>> ")
+
+                if to_eval == "exit":
+                    break
+                else:
+                    evaluate_code(to_eval, args.output)
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":
