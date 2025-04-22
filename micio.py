@@ -42,6 +42,9 @@ class Note:
     def transposed(self, value: int) -> Note:
         return Note(frequency=round(self.frequency * (semitone_ratio ** value), 2), time=self.time)
 
+    def change_time(self, value: float) -> Note:
+        return Note(frequency=self.frequency, time=time.self * value)
+    
     def set_time(self, time: float):
         self.time = int(time * 1000)
 
@@ -79,8 +82,12 @@ class Transpose:
     song: Expression
     value: int
 
+@dataclass 
+class ChangeTime:
+    song: Expression
+    value: float
 
-type Expression = Song | Let | Concat | Transpose | Var
+type Expression = Song | Let | Concat | Transpose | Var | ChangeTime
 
 type Environment = dict[str, Song]
 
@@ -88,12 +95,13 @@ env = {}
 
 grammar = r"""
     ?expr: concat | mono | let
-    mono: step | transpose | paren | var
+    mono: step | transpose | paren | var | changetime
     paren: "(" expr ")"
     var: IDENTIFIER
 
     let: "LET" IDENTIFIER "=" expr "IN" expr
     transpose: "TRANSPOSE(" expr "," TRANSPOSE_VALUE ")"
+    changetime: "CHANGETIME(" expr "," time ")"
 
     step: harmony | pause
     
@@ -169,6 +177,14 @@ def transpose(song: Song, value: int) -> Song:
 
     return transposed
 
+def changetime(song: Song, value: float) -> Song:
+    changed = []
+    for step in song:
+        if isinstance(step, list):
+            changed.append([note.change_time(value) for note in step])
+        else:
+            changed.append(step)
+    return changed
 
 def transform_parse_tree(tree: Tree) -> Expression:
     match tree:
@@ -184,6 +200,8 @@ def transform_parse_tree(tree: Tree) -> Expression:
             return [transform_parse_tree(subtree)]
         case Tree(data="transpose", children=[subtree, Token(type="TRANSPOSE_VALUE", value=value)]):
             return Transpose(song=transform_parse_tree(subtree), value=int(value))
+        case Tree(data="changetime", children=[subtree, time]):
+            return ChangeTime(song=transform_parse_tree(subtree), value=transform_parse_tree(time))
         case Tree(data="paren", children=[subtree]):
             return transform_parse_tree(subtree)
         case Tree(data="var", children=[Token(type="IDENTIFIER", value=name)]):
@@ -245,6 +263,8 @@ def evaluate(ast: Expression, env: Environment) -> Song | None:
             return evaluate(left, env) + evaluate(right, env)
         case Transpose(song=music, value=value):
             return transpose(evaluate(music, env), value)
+        case ChangeTime(song=music, value=value):
+            return changetime(evaluate(music,env), value)
         case Var(name=name):
             if name in env.keys():
                 return env[name]
