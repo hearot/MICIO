@@ -111,17 +111,17 @@ MICIO ignores whitespaces and follows the following grammar:
 A `Note` in MICIO is defined by its **name**, **octave**, and optionally a **modifier**.
 The name is selected from the following standard musical notes:
 
-    - `A`
-    - `B`
-    - `C`
-    - `D`
-    - `E`
-    - `F`
+- `A`
+- `B`
+- `C`
+- `D`
+- `E`
+- `F`
 
 Each note must be followed by its **octave**, which is represented by a non-negative integer. Optionally, a **modifier** can be included before the octave to adjust the pitch. The modifier can be either:
 
-    - `#` for **sharp** (diesis), raising the pitch by a semitone
-    - `b` for **flat** (bemolle), lowering the pitch by a semitone
+- `#` for **sharp** (diesis), raising the pitch by a semitone
+- `b` for **flat** (bemolle), lowering the pitch by a semitone
 
 Additionally, a **duration** can be specified for the note, indicating how long it should sound. This is done using the format:
 
@@ -131,14 +131,14 @@ Additionally, a **duration** can be specified for the note, indicating how long 
 
 where `TIME` represents the duration in seconds and can either be:
 
-    - a non-negative integer,
-    - a fraction in the form `n/d` (e.g. `1/2`).
+- a non-negative integer,
+- a fraction in the form `n/d` (e.g. `1/2`).
 
 ### Examples
 
-    - `A4`: generates the note `A` in the 4th octave.
-    - `A#4`: generates the note `A` in the 4th octave, with the **sharp** modifier.
-    - `(A#4, 2)`: generates the note `A` in the 4th octave, with the **sharp** modifier and a duration of 2 seconds.
+- `A4`: generates the note `A` in the 4th octave.
+- `A#4`: generates the note `A` in the 4th octave, with the **sharp** modifier.
+- `(A#4, 2)`: generates the note `A` in the 4th octave, with the **sharp** modifier and a duration of 2 seconds.
 
 ## Defining Harmonies
 
@@ -154,9 +154,9 @@ A single note `N`, when placed in the position of a harmony, will be regarded as
 
 ### Examples
 
-    - `A4`: generates the harmony containing the single note `A4`.
-    - `[A4, B4]`: generates the harmony containing the notes `A4` and `B4`.
-    - `[(A4, 2), B4]`: generates the harmony containing the notes `A4` (with a duration of 2 seconds) and `B4`.
+- `A4`: generates the harmony containing the single note `A4`.
+- `[A4, B4]`: generates the harmony containing the notes `A4` and `B4`.
+- `[(A4, 2), B4]`: generates the harmony containing the notes `A4` (with a duration of 2 seconds) and `B4`.
 
 ## Defining Pauses
 
@@ -169,8 +169,8 @@ PAUSE(TIME)
 
 where `TIME` represents the duration in seconds and can either be:
 
-    - a non-negative integer,
-    - a fraction in the form `n/d` (e.g. `1/2`).
+- a non-negative integer,
+- a fraction in the form `n/d` (e.g. `1/2`).
 
 The duration is specified in the same way as for a note, and it represents how long the pause lasts.
 
@@ -187,9 +187,9 @@ where `EXPR_i` is a harmony, a pause, a song, a `LET` statement, a unary operati
 
 ### Examples
 
-    - `[A4, B4] -> PAUSE(1) -> A4`: generates a song with the harmony `[A4, B4]`, then a pause of one second, and finally a note `A` in the
+- `[A4, B4] -> PAUSE(1) -> A4`: generates a song with the harmony `[A4, B4]`, then a pause of one second, and finally a note `A` in the
     4th octave.
-    - `PAUSE(1) -> x -> A4`: plays a song that has a pause of one second, then the song stored in `x`, and then one note `A` in the 4th octave.
+- `PAUSE(1) -> x -> A4`: plays a song that has a pause of one second, then the song stored in `x`, and then one note `A` in the 4th octave.
 
 ## TRANSPOSE and CHANGETIME
 
@@ -211,8 +211,8 @@ where `FACTOR` is a positive integer of a fraction in the form `n/d` and  `EXPR`
 
 ### Examples
 
-    - `TRANSPOSE(A4, 2)`: transposes `A4` by 2 semitones.
-    - `CHANGETIME((A4, 2), 0.5)`: halves the duration of `(A4, 2)` (which then simply becomes `A4`).
+- `TRANSPOSE(A4, 2)`: transposes `A4` by 2 semitones.
+- `CHANGETIME((A4, 2), 0.5)`: halves the duration of `(A4, 2)` (which then simply becomes `A4`).
 
 ## LET
 
@@ -229,13 +229,13 @@ where `variable` is the name of the variable, `VALUE` is the value that will be 
 
 ### Examples
 
-    - `LET x = A4 in x -> x`: generates `A4 -> A4`.
-    - `LET x = A5 in LET y = B5 in x -> y`: generates `A5 -> B5`.
+- `LET x = A4 in x -> x`: generates `A4 -> A4`.
+- `LET x = A5 in LET y = B5 in x -> y`: generates `A5 -> B5`.
 
 # Basic examples
 
 In the main folder of the repository you will be able to find three examples.
 
-    - `example_1.txt` will generate the C major scale, and is the simplest example of the three.
-    - `example_2.txt` will generate the refrain of *Never gonna give you up* by Rick Astley.
-    - `example_3.txt` will generate the refrain of the theme of Dario Moccia's *Momento gaming* with three different durations.
+- `example_1.txt` will generate the C major scale, and is the simplest example of the three.
+- `example_2.txt` will generate the refrain of *Never gonna give you up* by Rick Astley.
+- `example_3.txt` will generate the refrain of the theme of Dario Moccia's *Momento gaming* with three different durations.
