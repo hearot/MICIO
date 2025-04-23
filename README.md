@@ -117,6 +117,7 @@ The name is selected from the following standard musical notes:
 - `D`
 - `E`
 - `F`
+- `G`
 
 Each note must be followed by its **octave**, which is represented by a non-negative integer. Optionally, a **modifier** can be included before the octave to adjust the pitch. The modifier can be either:
 
@@ -239,3 +240,4 @@ In the main folder of the repository you will be able to find three examples.
 - `example_1.txt` will generate the C major scale, and is the simplest example of the three.
 - `example_2.txt` will generate the refrain of *Never gonna give you up* by Rick Astley.
 - `example_3.txt` will generate the refrain of the theme of Dario Moccia's *Momento gaming* with three different durations.
+- `example_4.txt` will generate the refrain of *Ode to Joy* by Ludwig van Beethoven
