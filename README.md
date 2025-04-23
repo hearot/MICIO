@@ -61,11 +61,11 @@ options:
 
 # Syntax reference
 
-The foundational building block of MICIO is the only existing type, i.e. the `Song` type. A `Song` is simply a collection of `Harmony`'s and
-`Pause`'s, played sequentially. An `Harmony` is a collection of `Note`s. The only binary operation is the concatenation, which make a `Song` follow another one. Two unary
-operations are also provided: `TRANSPOSE` to tranpose by some semitone, and  `CHANGETIME` to speed up or slow down a `Song`. A `LET` environment is provided, which binds a value to a variable within a scope.
+The foundational building block of MICIO is the only existing type, namely the `Song` type. A `Song` is simply a collection of `Harmony`'s and
+`Pause`'s, played sequentially. A `Harmony` is a collection of `Note`s. The only binary operation is the concatenation, which makes a `Song` follow another one. Two unary
+operations are also provided: `TRANSPOSE` to tranpose by a given number of semitones, and  `CHANGETIME` to speed up or slow down a `Song`. A `LET` environment is provided, which binds a value to a variable within a scope.
 
-MICIO ignores whitespaces and follows the following grammar:
+MICIO ignores whitespaces and employs the following grammar:
 
 ```text
     ?expr: concat | mono | let
