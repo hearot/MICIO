@@ -9,7 +9,7 @@ import sys
 from lark import Lark, Token, Tree
 
 from pydub import AudioSegment
-from pydub.generators import Sine
+from pydub.generators import Sawtooth
 
 type NoteName = Literal["A", "B", "C", "D", "E", "F", "G"]
 type NoteModifier = Literal["#", "b"]
@@ -287,8 +287,8 @@ def export_song(song: Song, output_name: str | None = None) -> None:
             harmony_audio = AudioSegment.silent(duration=duration)
 
             for note in item:
-                note_audio = Sine(note.frequency).to_audio_segment(
-                    # generate the sine wave of the note, with a fade in and fade out of 15ms
+                note_audio = Sawtooth(note.frequency).to_audio_segment(
+                    # generate the wave of the note, with a fade in and fade out of 15ms
                     duration=note.time).fade_in(15).fade_out(15)
                 harmony_audio = harmony_audio.overlay(note_audio)
 
