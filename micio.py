@@ -566,7 +566,7 @@ def main():
     The program then evaluates the code and generates the corresponding song in `.wav` format.
     """
     parser = argparse.ArgumentParser(
-        description="MICIO - A Musical Interpreter for Chord Interpretation and Orchestration, completely written in Python 3."
+        description="MICIO - A Musical Interpreter for Chord Interpretation and Orchestration, completely written in Python 3.12!"
     )
 
     parser.add_argument(
