@@ -35,7 +35,7 @@ You can install MICIO via `pip` by cloning the repository and installing its dep
 
 ```bash
 $ git clone https://github.com/hearot/MICIO.git
-$ cd micio
+$ cd MICIO
 $ pip install -r requirements.txt
 ```
 
