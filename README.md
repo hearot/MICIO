@@ -235,7 +235,7 @@ where `variable` is the name of the variable, `VALUE` is the value that will be 
 
 # Basic examples
 
-In the main folder of the repository you will be able to find three examples.
+In the main folder of the repository you will be able to find four examples.
 
 - `example_1.txt` will generate the C major scale, and is the simplest example of the three.
 - `example_2.txt` will generate the refrain of *Never gonna give you up* by Rick Astley.
