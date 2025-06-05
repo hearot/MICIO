@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Literal
+from typing import Any, List, Literal
 
 import argparse
 import sys
@@ -227,12 +227,12 @@ class Play:
     expr: Expression
 
 
-type Expression = Song | Let | Concat | Transpose | Var | ChangeTime
+type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply
 
 type Command = Assign | FunctionDecl | Expression
 type CommandSeq = list[Command]
 
-type Environment = dict[str, Song]
+type Environment = dict[str, Song] # TODO: environment + location -- not as a dict
 
 # The default dictionary, which maps variable names to
 # their corresponding songs.
@@ -470,11 +470,11 @@ def parse_ast(program: str) -> CommandSeq:
     return transform_parse_commandseq_tree(parse_tree)[0].expr
 
 
-def is_step(x): # TODO: docs & refactor
+def is_harmony_or_pause(x: Any) -> bool:  # TODO: docs & refactor
     return isinstance(x, Pause) or (isinstance(x, list) and all(isinstance(item, Note) for item in x))
 
 
-def evaluate(ast: Expression, env: Environment) -> Song:
+def evaluate_expr(ast: Expression, env: Environment) -> Song:
     """
     Evaluates an abstract syntax tree (AST) in the form of an `Expression` to produce a song,
     using the given environment.
@@ -492,27 +492,27 @@ def evaluate(ast: Expression, env: Environment) -> Song:
             # be used to evaluate the expression of the `Let`
             # construct.
             temporary_env = env.copy()
-            temporary_env[var] = evaluate(value, env)
+            temporary_env[var] = evaluate_expr(value, env)
 
-            return evaluate(expr, temporary_env)
+            return evaluate_expr(expr, temporary_env)
 
         case Concat(left=left, right=right):
-            left_eval = evaluate(left, env)
-            right_eval = evaluate(right, env)
+            left_eval = evaluate_expr(left, env)
+            right_eval = evaluate_expr(right, env)
 
-            if is_step(left_eval):
+            if is_harmony_or_pause(left_eval):
                 left_eval = [left_eval]
 
-            if is_step(right_eval):
+            if is_harmony_or_pause(right_eval):
                 right_eval = [right_eval]
 
             return left_eval + right_eval
 
         case Transpose(song=music, value=value):
-            return transpose(evaluate(music, env), value)
+            return transpose(evaluate_expr(music, env), value)
 
         case ChangeTime(song=music, value=value):
-            return change_time(evaluate(music, env), value)
+            return change_time(evaluate_expr(music, env), value)
 
         # Look up the value of the variable in the environment.
         case Var(name=name):
@@ -523,7 +523,7 @@ def evaluate(ast: Expression, env: Environment) -> Song:
 
         case _:
             # Checks if `ast` is a Harmony or a Pause.
-            if is_step(ast):
+            if is_harmony_or_pause(ast):
                 return ast
 
             raise TypeError(
@@ -551,7 +551,7 @@ def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -
             return
 
     try:
-        song = evaluate(ast, env)
+        song = evaluate_expr(ast, env)
     except Exception as e:
         print(f"Runtime error: {e}")
 
