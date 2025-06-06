@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 import argparse
 import sys
@@ -13,10 +13,6 @@ from pydub.generators import Sawtooth
 
 type NoteName = Literal["A", "B", "C", "D", "E", "F", "G"]
 type NoteModifier = Literal["#", "b"]
-
-# Default name for the output file when no specific
-# name is provided and the REPL is active.
-DEFAULT_OUTPUT_NAME = "output.wav"
 
 # 12th root of 2 -- used for shift pitch by semitones
 SEMITONE_RATIO = 1.0594631
@@ -126,12 +122,12 @@ class Pause:
     time: int  # ms
 
 
-type Harmony = list[Note]
+type Harmony = Sequence[Note]
 
 # Song represents the only type MICIO handles, stores, and
 # returns. Each song is simply a list of harmonies or
 # pauses.
-type Song = list[Harmony | Pause]
+type Song = Sequence[Harmony | Pause]
 
 
 @dataclass
@@ -206,14 +202,14 @@ class ChangeTime:
 @dataclass
 class FunctionDecl:
     name: str
-    params: list[str]
+    params: Sequence[str]
     body: Expression
 
 
 @dataclass
 class FunctionApply:
     name: str
-    args: list[Expression]
+    args: Sequence[Expression]
 
 
 @dataclass
@@ -223,14 +219,15 @@ class Assign:
 
 
 @dataclass
-class Play:
+class Export:
     expr: Expression
+    filename: str
 
 
 type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply
 
-type Command = Assign | FunctionDecl | Expression
-type CommandSeq = list[Command]
+type Command = Assign | FunctionDecl | Export
+type CommandSeq = Sequence[Command]
 
 type Location = int
 type EVal = Song
@@ -239,14 +236,10 @@ type DVal = Location | FunctionDecl  # TODO: constants?
 
 type Environment = dict[str, DVal]
 
-# The default dictionary, which maps variable names to
-# their corresponding songs.
-env: Environment = {}
-
 
 @dataclass
 class State:
-    store: list[MVal] # TODO: maybe collections.abc.Sequence?
+    store: Sequence[MVal]
     next_loc: Location
 
     @staticmethod
@@ -256,7 +249,7 @@ class State:
     def allocate(self, value: MVal) -> tuple[Location, State]:
         loc = self.next_loc
 
-        return loc, State(store=self.store + [value], next_loc=loc.address + 1)
+        return loc, State(store=self.store + [value], next_loc=loc + 1)
 
     def update(self, addr: int, value: MVal) -> State:
         return State(store=self.store[:addr-1] + [value] + self.store[addr+1:], next_loc=self.next_loc)
@@ -269,12 +262,15 @@ class State:
 # accepted by the parser.
 grammar = r"""
     command_seq: command (";" command?)*
-    ?command: assign | fundecl | expr
+    ?command: assign | fundecl | export
 
     assign: IDENTIFIER "=" expr
     
     fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr
     params: IDENTIFIER ("," IDENTIFIER)*
+
+    export: "EXPORT(" expr "," "\"" FILENAME "\"" ")"
+    FILENAME: /[a-zA-Z0-9_\/.-]+\.[a-zA-Z0-9]+/
 
     ?expr: concat | mono | let
     ?mono: step | transpose | paren | var | changetime | funapply
@@ -320,7 +316,7 @@ grammar = r"""
 parser = Lark(grammar, start="command_seq")
 
 
-def export_song(song: Song, output_name: str | None = None) -> None:
+def export_song(song: Song, output_name: str) -> None:
     """
     Exports the given song as a `.wav` file. The function combines harmonies,
     handles pauses, and generates the audio for each note in the song.
@@ -328,13 +324,8 @@ def export_song(song: Song, output_name: str | None = None) -> None:
 
     Args:
         song (Song): The song to be exported, represented as a sequence of harmonies and pauses.
-        output_name (str | None): The name of the output file. If `None`, the `DEFAULT_OUTPUT_NAME` is used.
+        output_name (str): The name of the output file. 
     """
-    global DEFAULT_OUTPUT_NAME
-
-    if not output_name:
-        output_name = DEFAULT_OUTPUT_NAME
-
     combined = AudioSegment.silent(duration=0)  # default segment
 
     for item in song:
@@ -415,10 +406,16 @@ def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
             return Assign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
 
         case Tree(data="fundecl", children=[Token(type="IDENTIFIER", value=name), Tree(data="params", children=params), expr]):
+            params = [param.value for param in params]
+
+            if len(params) > len(set(params)):  # if there are multiple instances of the same variable
+                raise SyntaxError(
+                    f"Multiple instances of variables found in the declaration of the function {name}")
+
             return FunctionDecl(name=name, params=[param.value for param in params], body=transform_parse_expr_tree(expr))
 
-        case expr:
-            return Play(expr=transform_parse_expr_tree(expr))
+        case Tree(data="export", children=[expr, Token(type="FILENAME", value=filename)]):
+            return Export(expr=transform_parse_expr_tree(expr), filename=filename)
 
 
 def transform_parse_expr_tree(tree: Tree) -> Expression:
@@ -493,14 +490,14 @@ def parse_ast(program: str) -> CommandSeq:
         Expression: The resulting abstract syntax tree representing the musical expression.
     """
     parse_tree = parser.parse(program)
-    return transform_parse_commandseq_tree(parse_tree)[0].expr
+    return transform_parse_commandseq_tree(parse_tree)
 
 
 def is_harmony_or_pause(x: Any) -> bool:  # TODO: docs & refactor
     return isinstance(x, Pause) or (isinstance(x, list) and all(isinstance(item, Note) for item in x))
 
 
-def evaluate_expr(ast: Expression, env: Environment) -> Song:
+def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
     """
     Evaluates an abstract syntax tree (AST) in the form of an `Expression` to produce a song,
     using the given environment.
@@ -517,26 +514,56 @@ def evaluate_expr(ast: Expression, env: Environment) -> Song:
             # Creates the temporary environment, which will
             # be used to evaluate the expression of the `Let`
             # construct.
-            temporary_env = env.copy()
-            temporary_env[var] = evaluate_expr(value, env)
+            loc, temporary_state = state.allocate(
+                evaluate_expr(value, env, state))
 
-            return evaluate_expr(expr, temporary_env)
+            temporary_env = env.copy()
+            temporary_env[var] = loc
+
+            return evaluate_expr(expr, temporary_env, temporary_state)
 
         case Concat(left=left, right=right):
-            return evaluate_expr(left, env) + evaluate_expr(right, env)
+            return evaluate_expr(left, env, state) + evaluate_expr(right, env, state)
 
         case Transpose(song=music, value=value):
-            return transpose(evaluate_expr(music, env), value)
+            return transpose(evaluate_expr(music, env, state), value)
 
         case ChangeTime(song=music, value=value):
-            return change_time(evaluate_expr(music, env), value)
+            return change_time(evaluate_expr(music, env, state), value)
 
         # Look up the value of the variable in the environment.
         case Var(name=name):
             if name in env.keys():
-                return env[name]
+                if isinstance(env[name], int):
+                    return state.access(env[name])
+                elif isinstance(env[name], FunctionDecl):
+                    raise TypeError(f"{name} is a function, not a song.")
+                else:
+                    raise TypeError(
+                        f"Couldn't convert {name} to a proper location")
 
             raise NameError(f"Variable '{name}' is not defined")
+
+        case FunctionApply(name=function_name, args=args):
+            if function_name in env.keys():
+                if isinstance(env[function_name], FunctionDecl):
+                    function: FunctionDecl = env[function_name]
+
+                    if len(args) == len(function.params):
+                        temporary_env = env.copy()
+
+                        for arg, arg_value in zip(function.params, args):
+                            loc, temporary_state = state.allocate(
+                                evaluate_expr(arg_value, env, state))
+
+                            temporary_env[arg] = loc
+
+                        return evaluate_expr(function.body, temporary_env, temporary_state)
+                    else:
+                        raise TypeError(
+                            f"{function_name} takes {len(function.params)} arguments but {len(args)} were given")
+                else:
+                    raise TypeError(f"{function_name} is not a function.")
 
         case _:
             # Checks if `ast` is a Harmony or a Pause.
@@ -547,14 +574,38 @@ def evaluate_expr(ast: Expression, env: Environment) -> Song:
                 "The evaluated expression is not an harmony nor a pause.")
 
 
-def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -> None:
+def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Environment, State]:
+    match ast:
+        case Assign(var=var, expr=expr):
+            loc, state = state.allocate(
+                evaluate_expr(expr, env, state))
+
+            env = env.copy()
+            env[var] = loc
+
+            return env, state
+
+        case FunctionDecl(name=function_name, params=params, body=body):
+            env = env.copy()
+            env[function_name] = ast
+
+            return env, state
+
+        case Export(expr=expr, filename=filename):
+            try:
+                export_song(evaluate_expr(expr, env, state), filename)
+            except Exception as e:
+                raise Exception(f"Export & conversion error: {e}")
+
+            return env, state
+
+
+def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: bool = False) -> None:
     """
-    Evaluates the provided code and outputs the resulting song to a file.
-    If the evaluation is successful, the resulting song is played and exported to a `.wav` file.
+    Evaluates the provided code.
 
     Args:
         code (str): The code to be evaluated.
-        output_file (str): The name of the output file.
         sysexit_on_error (bool): Whether to exit the program on error.
     """
     try:
@@ -568,7 +619,8 @@ def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -
             return
 
     try:
-        song = evaluate_expr(ast, env)
+        for command in ast:
+            env, state = evaluate_command(command, env, state)
     except Exception as e:
         print(f"Runtime error: {e}")
 
@@ -576,16 +628,6 @@ def evaluate_code(code: str, output_file: str, sysexit_on_error: bool = False) -
             sys.exit(1)
         else:
             return
-
-    # print(song)
-
-    try:
-        export_song(song, output_file)
-    except Exception as e:
-        print(f"Conversion error: {e}")
-
-        if sysexit_on_error:
-            sys.exit(1)
 
 
 def main():
@@ -607,26 +649,19 @@ def main():
         "filename", nargs="?", help="the file that needs to be converted to the Waveform Audio File (WAVE, '.wav') format (default is a REPL)."
     )
 
-    parser.add_argument(
-        "-o", "--output",
-        default=DEFAULT_OUTPUT_NAME,
-        help=f"set the output file name (default is '{DEFAULT_OUTPUT_NAME}' for a REPL, and 'filename.wav' for 'filename.ext' as filename); if the output file is '{DEFAULT_OUTPUT_NAME}', it is handled as the default case."
-    )
-
     args = parser.parse_args()
 
-    # If a filename is given and the output is not, use `filename.wav` as the
-    # output file name (given that `filename.ext` is the code file name).
-    if args.output == DEFAULT_OUTPUT_NAME and args.filename:
-        output = args.filename.split(".")[0] + ".wav"
-    else:
-        output = args.output
+    # The default dictionary, which maps variable names to
+    # their corresponding songs.
+    env: Environment = {}
+
+    state: State = State.empty_state()
 
     if args.filename:
         try:
             with open(args.filename, "r") as file:
                 code = file.read()
-                evaluate_code(code, output, sysexit_on_error=True)
+                evaluate_code(code, env, state, sysexit_on_error=True)
         except FileNotFoundError:
             print(f"Error: File '{args.filename}' not found.")
             sys.exit(1)
@@ -648,7 +683,7 @@ def main():
                 if to_eval == "exit":
                     break
                 else:
-                    evaluate_code(to_eval, args.output)
+                    evaluate_code(to_eval, env, state)
         except KeyboardInterrupt:
             pass
 
