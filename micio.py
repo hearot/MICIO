@@ -11,7 +11,8 @@ from lark import Lark, Token, Tree
 from pydub import AudioSegment
 from pydub.generators import Sawtooth
 
-type NoteName = Literal["A", "B", "C", "D", "E", "F", "G"]
+type NoteName = Literal["A", "B", "C", "D", "E", "F", "G",
+                        "Do", "Re", "Mi", "Fa", "Sol", "So", "La", "Si", "Ti", "H"]
 type NoteModifier = Literal["#", "b"]
 
 # 12th root of 2 -- used for shift pitch by semitones
@@ -20,7 +21,16 @@ SEMITONE_RATIO = 1.0594631
 # Frequencies of the 4th octave notes (A4 up to G4)
 NOTE_FREQUENCIES = {
     "A": 440.00, "B": 493.88, "C": 261.63, "D": 293.66,
-    "E": 329.63, "F": 349.23, "G": 392.00
+    "E": 329.63, "F": 349.23, "G": 392.00,
+}
+
+# Fixed-Do solfège
+NOTE_FREQUENCIES = NOTE_FREQUENCIES | {
+    "Do": NOTE_FREQUENCIES["C"], "Re": NOTE_FREQUENCIES["D"],
+    "Mi": NOTE_FREQUENCIES["E"], "Fa": NOTE_FREQUENCIES["F"],
+    "Sol": NOTE_FREQUENCIES["G"], "So": NOTE_FREQUENCIES["G"],
+    "La": NOTE_FREQUENCIES["A"], "Si": NOTE_FREQUENCIES["B"],
+    "Ti": NOTE_FREQUENCIES["B"], "H": NOTE_FREQUENCIES["B"]
 }
 
 
@@ -43,7 +53,8 @@ class Note:
         note according to the frequencies stored in `NOTE_FREQUENCIES`.
 
         Args:
-            name (NoteName): The name of the note ("A", "B", "C", "D", "E", "F", or "G").
+            name (NoteName): The name of the note in the letter-naming system ("A", "B", "C", "D", "E", "F", or "G") or
+                             the fixed-Do solfège ("Do", "Re", "Mi", "Fa", "Sol"/"So", "La", or "Si"/"Ti"/"H").
             octave (int): The octave in which the note belongs.
             modifier (NoteModifier | None): Optional modifier for the note ("#" for sharp, "b" for flat, or `None` for the normal note).
 
@@ -365,7 +376,7 @@ grammar = r"""
 
     TRANSPOSE_VALUE: /[-]?[0-9]+/ 
 
-    NOTE: "A" | "B" | "C" | "D" | "E" | "F" | "G" 
+    NOTE: "A" | "B" | "C" | "D" | "E" | "F" | "G" | "Do" | "Re" | "Mi" | "Fa" | "Sol" | "So" | "La" | "Si" | "Ti" | "H"
     MODIFIER: "#" | "b"
         
     IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
