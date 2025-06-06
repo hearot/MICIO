@@ -339,7 +339,7 @@ grammar = r"""
 
     assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
     
-    fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr
+    fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr | "FUNCTION" IDENTIFIER "(" params ")" ":=" expr
     params: IDENTIFIER ("," IDENTIFIER)*
 
     export: "EXPORT(" expr "," "\"" FILENAME "\"" ")"
@@ -382,7 +382,9 @@ grammar = r"""
     IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
     NUMBER: /[0-9]+/
 
+    COMMENT: /\/\/[^\n]*/
     %import common.WS
+    %ignore COMMENT
     %ignore WS
 """
 

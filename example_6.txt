@@ -1,4 +1,0 @@
-FUNCTION ADD_INTRO(X) = A4 -> B4 -> X;
-Y := (A4, 1/2);
-Y := (B4, 1/2);
-EXPORT(ADD_INTRO(C4) -> Y -> ADD_INTRO(A4), "example_6.wav");
