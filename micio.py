@@ -577,11 +577,15 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
 def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Environment, State]:
     match ast:
         case Assign(var=var, expr=expr):
-            loc, state = state.allocate(
-                evaluate_expr(expr, env, state))
+            if var.name in env.keys():
+                loc = env[var.name]
+                state = state.update(loc, evaluate_expr(expr, env, state))
+            else:
+                loc, state = state.allocate(
+                    evaluate_expr(expr, env, state))
 
-            env = env.copy()
-            env[var.name] = loc
+                env = env.copy()
+                env[var.name] = loc
 
             return env, state
 
@@ -621,7 +625,13 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
 
     try:
         for command in ast:
+            print(env)
+            print(state.store)
+            print()
             env, state = evaluate_command(command, env, state)
+
+        print(env)
+        print(state.store)
     except Exception as e:
         print(f"Runtime error: {e}")
 
