@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Sequence
+from typing import Literal, Sequence
 
 import argparse
 import sys
@@ -121,8 +121,35 @@ class Pause:
 
     time: int  # ms
 
+    def change_time(self, value: float) -> Pause:
+        """
+        Change the duration of the pause by a given factor.
 
-type Harmony = Sequence[Note]
+        Args:
+            value (float): The factor by which the duration of the pause is changed. For example, a value
+                           of 2.0 will double the duration, while 0.5 will halve it.
+        Returns:
+            Pause: A new Pause object with the adjusted duration.
+
+        Example:
+            pause = Pause(1000)  # Pause for one second
+            longer_pause = note.change_time(2.0)  # Doubles the duration of the pause, i.e. pause for two seconds.
+        """
+        return Pause(time=int(self.time * value))
+
+
+@dataclass
+class Harmony:
+    """
+    A dataclass representing a harmony, namely a sequence of
+    notes to be played simultaneously.
+
+    Attributes:
+        notes (Sequence[Note]): The sequence of notes that make up the harmony.
+    """
+
+    notes: Sequence[Note]
+
 
 # Song represents the only type MICIO handles, stores, and
 # returns. Each song is simply a list of harmonies or
@@ -201,6 +228,17 @@ class ChangeTime:
 
 @dataclass
 class FunctionDecl:
+    """
+    A dataclass representing the declaration of a function which returns the result of
+    evaluating an expression with multiple arguments.
+
+    Attributes:
+        name (str): The name of the function.
+        params (Sequence[str]): The sequence of arguments names required by the function.
+                                For example, in FUNCTION F(X, Y) = ..., the arguments are X and Y.
+        body (Expression): The expression to evaluate, with the arguments replaced by their
+                           corresponding values.
+    """
     name: str
     params: Sequence[str]
     body: Expression
@@ -208,18 +246,42 @@ class FunctionDecl:
 
 @dataclass
 class FunctionApply:
+    """
+    A dataclass representing the application of a function to multiple arguments.
+
+    Attributes:
+        name (str): The name of the function to call.
+        args (Sequence[str]): The sequence of expression passed as arguments to the function.
+                              For example, in F(X, Y) = ..., the arguments are the evaluations of
+                              X and Y.
+    """
     name: str
     args: Sequence[Expression]
 
 
 @dataclass
 class Assign:
+    """
+    A dataclass representing the assignment of an expression to a variable.
+
+    Attributes:
+        var (Var): The variable to which the expression is bound.
+        expr (Expression): The expression being assigned to the variable.
+    """
     var: Var
     expr: Expression
 
 
 @dataclass
 class Export:
+    """
+    A dataclass representing the export of a song (defined as an expression which
+    requires evaluation) to a WAVE file.
+
+    Attributes:
+        expr (Expression): The expression representing the song to be evaluated and exported.
+        filename (str): The name of the WAVE file to export the song to.
+    """
     expr: Expression
     filename: str
 
@@ -332,19 +394,21 @@ def export_song(song: Song, output_name: str) -> None:
         if isinstance(item, Pause):
             combined += AudioSegment.silent(
                 duration=item.time)  # adds a pause to the song, according to the evaluated expression
-        else:
+        elif isinstance(item, Harmony):
             # get the duration of the current harmony
-            duration = max(note.time for note in item)
+            duration = max(note.time for note in item.notes)
             # set the base segment which all the notes are going to be overlaid on
             harmony_audio = AudioSegment.silent(duration=duration)
 
-            for note in item:
+            for note in item.notes:
                 note_audio = Sawtooth(note.frequency).to_audio_segment(
                     # generate the wave of the note, with a fade in and fade out of 15ms
                     duration=note.time).fade_in(15).fade_out(15)
                 harmony_audio = harmony_audio.overlay(note_audio)
 
             combined += harmony_audio  # adds the segment to the final song
+        else:
+            raise TypeError(f"{item} is neither a Pause nor a Harmony.")
 
     # add a final silent segment for 100ms
     combined += AudioSegment.silent(duration=100)
@@ -369,10 +433,13 @@ def transpose(song: Song, value: int) -> Song:
     transposed = []
 
     for step in song:
-        if isinstance(step, list):
-            transposed.append([note.transposed(value) for note in step])
-        else:
+        if isinstance(step, Harmony):
+            transposed.append(
+                Harmony(notes=[note.transposed(value) for note in step.notes]))
+        elif isinstance(step, Pause):
             transposed.append(step)
+        else:
+            raise TypeError(f"{step} is not a Harmony nor a Pause.")
 
     return transposed
 
@@ -390,10 +457,13 @@ def change_time(song: Song, value: float) -> Song:
     """
     changed = []
     for step in song:
-        if isinstance(step, list):
-            changed.append([note.change_time(value) for note in step])
+        if isinstance(step, Harmony):
+            changed.append(
+                Harmony(notes=[note.change_time(value) for note in step.notes]))
+        elif isinstance(step, Pause):
+            changed.append(step.change_time(value))
         else:
-            changed.append(step)
+            raise TypeError(f"{step} is not a Harmony nor a Pause.")
     return changed
 
 
@@ -434,7 +504,7 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
             return Concat(left=transform_parse_expr_tree(left), right=transform_parse_expr_tree(right))
 
         case Tree(data="let", children=[Token(type="IDENTIFIER", value=var), value, expr]):
-            return Let(var=var, value=transform_parse_expr_tree(value), expr=transform_parse_expr_tree(expr))
+            return Let(var=Var(name=var), value=transform_parse_expr_tree(value), expr=transform_parse_expr_tree(expr))
 
         case Tree(data="step", children=[subtree]):
             # A step is a single harmony or a pause, but internally is already
@@ -455,7 +525,7 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
             return Var(name=name)
 
         case Tree(data="harmony", children=children):
-            return [transform_parse_expr_tree(child) for child in children]
+            return Harmony(notes=[transform_parse_expr_tree(child) for child in children])
 
         case Tree(data="pause", children=[time]):
             return Pause(time=int(1000 * transform_parse_expr_tree(time)))
@@ -491,10 +561,6 @@ def parse_ast(program: str) -> CommandSeq:
     """
     parse_tree = parser.parse(program)
     return transform_parse_commandseq_tree(parse_tree)
-
-
-def is_harmony_or_pause(x: Any) -> bool:  # TODO: docs & refactor
-    return isinstance(x, Pause) or (isinstance(x, list) and all(isinstance(item, Note) for item in x))
 
 
 def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
@@ -565,13 +631,12 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
                 else:
                     raise TypeError(f"{function_name} is not a function.")
 
-        case _:
-            # Checks if `ast` is a Harmony or a Pause.
-            if is_harmony_or_pause(ast):
-                return [ast]
+        case Harmony() | Pause():
+            return [ast]
 
+        case _:
             raise TypeError(
-                "The evaluated expression is not an harmony nor a pause.")
+                "Unknown expression.")
 
 
 def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Environment, State]:
@@ -649,16 +714,14 @@ def main():
 
     The program can either (depending on the command-line arguments):
     - Process an input file containing musical code.
-    - Enter a REPL (Read-Eval-Print Loop) where the user can input musical expressions interactively.
-
-    The program then evaluates the code and generates the corresponding song in `.wav` format.
+    - Enter a REPL (Read-Eval-Print Loop) where the user can input MICIO commands interactively.
     """
     parser = argparse.ArgumentParser(
         description="MICIO - A Musical Interpreter for Chord Interpretation and Orchestration, completely written in Python 3.12!"
     )
 
     parser.add_argument(
-        "filename", nargs="?", help="the file that needs to be converted to the Waveform Audio File (WAVE, '.wav') format (default is a REPL)."
+        "filename", nargs="?", help="the file containing the code to be evaluated (default is a REPL)."
     )
 
     args = parser.parse_args()

@@ -7,7 +7,7 @@ EXPORT(
                 (G3, 1/2) -> x -> (E4, 1/4) ->
                 (C4, 1/4) -> PAUSE(3/2) -> (G3, 1/2),
             12)
-    ) IN CHANGETIME(y, 1/2) -> y -> CHANGETIME(y, 2),
+    ) IN CHANGETIME(y, 1/2) -> y -> CHANGETIME(y, 3/2),
 
     "example_3.wav"
-)
+);
