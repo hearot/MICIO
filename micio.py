@@ -264,7 +264,7 @@ grammar = r"""
     command_seq: command (";" command?)*
     ?command: assign | fundecl | export
 
-    assign: IDENTIFIER "=" expr
+    assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
     
     fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr
     params: IDENTIFIER ("," IDENTIFIER)*
@@ -280,7 +280,7 @@ grammar = r"""
     let: "LET" IDENTIFIER "=" expr "IN" expr
 
     funapply: IDENTIFIER "(" arg_list ")"
-    arg_list: expr (";" expr)*
+    arg_list: expr ("," expr)*
 
     transpose: "TRANSPOSE(" expr "," TRANSPOSE_VALUE ")"
     changetime: "CHANGETIME(" expr "," time ")"
@@ -412,7 +412,7 @@ def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
                 raise SyntaxError(
                     f"Multiple instances of variables found in the declaration of the function {name}")
 
-            return FunctionDecl(name=name, params=[param.value for param in params], body=transform_parse_expr_tree(expr))
+            return FunctionDecl(name=name, params=params, body=transform_parse_expr_tree(expr))
 
         case Tree(data="export", children=[expr, Token(type="FILENAME", value=filename)]):
             return Export(expr=transform_parse_expr_tree(expr), filename=filename)
@@ -518,7 +518,7 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
                 evaluate_expr(value, env, state))
 
             temporary_env = env.copy()
-            temporary_env[var] = loc
+            temporary_env[var.name] = loc
 
             return evaluate_expr(expr, temporary_env, temporary_state)
 
@@ -581,7 +581,7 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
                 evaluate_expr(expr, env, state))
 
             env = env.copy()
-            env[var] = loc
+            env[var.name] = loc
 
             return env, state
 
@@ -593,6 +593,7 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
 
         case Export(expr=expr, filename=filename):
             try:
+                # print(evaluate_expr(expr, env, state))
                 export_song(evaluate_expr(expr, env, state), filename)
             except Exception as e:
                 raise Exception(f"Export & conversion error: {e}")
