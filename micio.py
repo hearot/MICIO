@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 import argparse
 import sys
@@ -126,12 +126,12 @@ class Pause:
     time: int  # ms
 
 
-type Harmony = List[Note]
+type Harmony = list[Note]
 
 # Song represents the only type MICIO handles, stores, and
 # returns. Each song is simply a list of harmonies or
 # pauses.
-type Song = List[Harmony | Pause]
+type Song = list[Harmony | Pause]
 
 
 @dataclass
@@ -232,11 +232,37 @@ type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionA
 type Command = Assign | FunctionDecl | Expression
 type CommandSeq = list[Command]
 
-type Environment = dict[str, Song] # TODO: environment + location -- not as a dict
+type Location = int
+type EVal = Song
+type MVal = Song
+type DVal = Location | FunctionDecl  # TODO: constants?
+
+type Environment = dict[str, DVal]
 
 # The default dictionary, which maps variable names to
 # their corresponding songs.
 env: Environment = {}
+
+
+@dataclass
+class State:
+    store: list[MVal] # TODO: maybe collections.abc.Sequence?
+    next_loc: Location
+
+    @staticmethod
+    def empty_state() -> State:
+        return State(store=[], next_loc=0)
+
+    def allocate(self, value: MVal) -> tuple[Location, State]:
+        loc = self.next_loc
+
+        return loc, State(store=self.store + [value], next_loc=loc.address + 1)
+
+    def update(self, addr: int, value: MVal) -> State:
+        return State(store=self.store[:addr-1] + [value] + self.store[addr+1:], next_loc=self.next_loc)
+
+    def access(self, addr: int) -> MVal:
+        return self.store[addr]
 
 
 # The grammar defining the structure of the musical expressions
@@ -497,16 +523,7 @@ def evaluate_expr(ast: Expression, env: Environment) -> Song:
             return evaluate_expr(expr, temporary_env)
 
         case Concat(left=left, right=right):
-            left_eval = evaluate_expr(left, env)
-            right_eval = evaluate_expr(right, env)
-
-            if is_harmony_or_pause(left_eval):
-                left_eval = [left_eval]
-
-            if is_harmony_or_pause(right_eval):
-                right_eval = [right_eval]
-
-            return left_eval + right_eval
+            return evaluate_expr(left, env) + evaluate_expr(right, env)
 
         case Transpose(song=music, value=value):
             return transpose(evaluate_expr(music, env), value)
@@ -524,7 +541,7 @@ def evaluate_expr(ast: Expression, env: Environment) -> Song:
         case _:
             # Checks if `ast` is a Harmony or a Pause.
             if is_harmony_or_pause(ast):
-                return ast
+                return [ast]
 
             raise TypeError(
                 "The evaluated expression is not an harmony nor a pause.")
