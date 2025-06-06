@@ -625,13 +625,14 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
 
     try:
         for command in ast:
-            print(env)
-            print(state.store)
-            print()
+            # print(env)
+            # print(state.store)
+            # print()
+
             env, state = evaluate_command(command, env, state)
 
-        print(env)
-        print(state.store)
+        # print(env)
+        # print(state.store)
     except Exception as e:
         print(f"Runtime error: {e}")
 
