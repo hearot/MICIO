@@ -29,7 +29,11 @@ The main MICIO script fully complies with [mypy](https://github.com/python/mypy)
     - [Defining and Concatenating Songs](#defining-and-concatenating-songs)
     - [TRANSPOSE and CHANGETIME](#transpose-and-changetime)
     - [LET](#let)
+    - [Applying a Function](#applying-a-function)
   - [Commands](#commands)
+    - [Assignments](#assignments)
+    - [Function Declarations](#function-declarations)
+    - [EXPORT](#export)
 - [Basic Examples](#basic-examples)
 
 ## Installation
@@ -265,7 +269,71 @@ where `variable` is the name of the variable, `VALUE` is the value that will be 
 - `LET x = A4 in x -> x`: generates `A4 -> A4`.
 - `LET x = A5 in LET y = B5 in x -> y`: generates `A5 -> B5`.
 
+### Applying a Function
+
+Once a function has been declared using the `FUNCTION` keyword (see [Function Declarations](#function-declarations)),
+it can be applied by calling it with arguments, using the following syntax:
+
+```
+NAME(ARG1, ARG2, ..., ARGN)
+```
+
+where `ARGi` is an expression for each `i`. Applying a function always returns
+a `Song` expression.
+
+#### Examples
+
+We use the function declared in [Function Declarations](#function-declarations).
+
+- `INTRO(B4)`: returns `A4 -> B4`.
+- `F(C4, D5)`: returns `C4 -> D5`.
+
 ## Commands
+
+### Assignments
+
+You can assign an expression with `VAR := EXPR` or `VAR = EXPR`, where `VAR`
+is a valid identifier in the grammar and `EXPR` is an expression for a `Song`.
+
+#### Examples
+
+- `x := A4`: assigns the song `[A4]` to the variable `x`.
+- `scale := C4 -> D4 -> E4 -> F4 -> G4 -> A4 -> B4 -> C5`: assign the C major scale to `scale`.
+-  `y := F(x)`: assigns the evaluation of `F` with argument `x` to the variable `y`.
+
+### Function Declarations
+
+You can define a function with the following syntax:
+
+```FUNCTION NAME(X1, X2, X3, ..., XN) = EXPR```
+
+or
+
+```FUNCTION NAME(X1, X2, X3, ..., XN) := EXPR```
+
+where `NAME` is the name of the function, `X1`, ..., `XN` are
+the variables employed in the expression `EXPR`, an expression for a `Song`. All
+the variables must be expressions as well, and must be distinct from one another.
+Functions with zero parameters are NOT allowed, hence must have at least one
+parameter. Functions do NOT allow commands.
+
+#### Examples
+
+- `FUNCTION INTRO(X) := A4 -> X`: declares a function `INTRO` with one parameter `X` which prepends `A4` to the song passed as argument `X`.
+- `FUNCTION F(X, Y) := X -> Y`: declares a function `F` with two parameters `X` and `Y` which concatenes `X` into `Y`.
+
+### EXPORT
+
+You can export a `Song` expression to a WAVE file with the following syntax:
+
+```EXPORT(EXPR, "filename.wav")```
+
+where `EXPR` is an expression for a `Song` and `filename.wav` is the name for the WAVE
+file.
+
+#### Examples
+
+- `EXPORT(A4 -> B4, "music.wav")`: exports the song `[A4] -> [B4]` to `music.wav`.
 
 # Basic examples
 
