@@ -15,18 +15,21 @@
     </a>
 </p>
 
-**MICIO** ([/ˈmitʃo/](https://ipa-reader.com/?text=%CB%88mit%CA%83o&voice=Nicole)) is a Python-based musical interpreter designed for chord interpretation and orchestration. It allows you to define, manipulate, and export musical compositions in the WAVE format using a simple syntax inspired by functional programming concepts. The goal is to make it easy to create, manipulate, and combine musical elements like notes, harmonies, and timings.
+**MICIO** ([/ˈmitʃo/](https://ipa-reader.com/?text=%CB%88mit%CA%83o&voice=Nicole)) is a Python-based musical interpreter designed for chord interpretation and orchestration. It allows you to define, manipulate, and export musical compositions in the WAVE format using a simple and intuitive syntax. The goal is to make it easy to create, manipulate, and combine musical elements like notes, harmonies, and timings.
+The main MICIO script fully complies with [mypy](https://github.com/python/mypy) type-checking standards.
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Syntax reference](#syntax-reference)
-  - [Defining Notes](#defining-notes)
-  - [Defining Harmonies](#defining-harmonies)
-  - [Defining Pauses](#defining-pauses)
-  - [Defining and Concatenating Songs](#defining-and-concatenating-songs)
-  - [TRANSPOSE and CHANGETIME](#transpose-and-changetime)
-  - [LET](#let)
+  - [Expressions](#expressions)
+    - [Defining Notes](#defining-notes)
+    - [Defining Harmonies](#defining-harmonies)
+    - [Defining Pauses](#defining-pauses)
+    - [Defining and Concatenating Songs](#defining-and-concatenating-songs)
+    - [TRANSPOSE and CHANGETIME](#transpose-and-changetime)
+    - [LET](#let)
+  - [Commands](#commands)
 - [Basic Examples](#basic-examples)
 
 ## Installation
@@ -39,6 +42,12 @@ $ cd MICIO
 $ pip install -r requirements.txt
 ```
 
+If you wish to perform type checks with `mypy`, you can install the necessary stubs as well:
+
+```bash
+$ pip install -r test-requirements.txt
+```
+
 You can then launch MICIO via `python`:
 
 ```bash
@@ -46,24 +55,26 @@ $ python micio.py -h
 ```
 
 ```text
-usage: micio.py [-h] [-o OUTPUT] [filename]
+usage: micio.py [-h] [filename]
 
 MICIO - A Musical Interpreter for Chord Interpretation and Orchestration, completely written in Python 3.12!
 
 positional arguments:
-  filename             the file that needs to be converted to the Waveform Audio File (WAVE, '.wav') format (default is a REPL).
+  filename    the file containing the code to execute (defaults to a REPL)
 
 options:
-  -h, --help           show this help message and exit
-  -o, --output OUTPUT  set the output file name (default is 'output.wav' for a REPL, and 'filename.wav' for 'filename.ext' as filename); if the output file is 'output.wav',  
-                       it is handled as the default case.
+  -h, --help  show this help message and exit
 ```
 
 # Syntax reference
 
 The foundational building block of MICIO is the only existing type, namely the `Song` type. A `Song` is simply a collection of `Harmony`'s and
-`Pause`'s, played sequentially. A `Harmony` is a collection of `Note`s. The only binary operation is the concatenation, which makes a `Song` follow another one. Two unary
+`Pause`'s, played sequentially. A `Harmony` is a collection of `Note`s. The most important binary operation is the concatenation,
+which makes a `Song` follow another one. Two built-in unary
 operations are also provided: `TRANSPOSE` to tranpose by a given number of semitones, and  `CHANGETIME` to speed up or slow down a `Song`. A `LET` environment is provided, which binds a value to a variable within a scope.
+
+A code consists of a sequence of commands executed sequentially. Each command may be an assignment, which binds a `Song`
+to a variable; a function declaration; or an `EXPORT` statement, used to export a `Song` to WAVE file.
 
 MICIO ignores whitespaces and employs the following grammar:
 
@@ -122,18 +133,20 @@ MICIO ignores whitespaces and employs the following grammar:
     %ignore WS
 ```
 
-## Defining Notes
+## Expressions
+
+### Defining Notes
 
 A `Note` in MICIO is defined by its **name**, **octave**, and optionally a **modifier**.
-The name is selected from the following standard musical notes:
+The name is selected from the following standard musical notes (letter notation, or fixed-Do solfège):
 
-- `A`
-- `B`
-- `C`
-- `D`
-- `E`
-- `F`
-- `G`
+- `A` / `La`
+- `B` / `Si` / `Ti` / `H`
+- `C` / `Do`
+- `D` / `Re`
+- `E` / `Mi`
+- `F` / `Fa`
+- `G` / `Sol` / `So`
 
 Each note must be followed by its **octave**, which is represented by a non-negative integer. Optionally, a **modifier** can be included before the octave to adjust the pitch. The modifier can be either:
 
@@ -151,15 +164,16 @@ where `TIME` represents the duration in seconds and can either be:
 - a non-negative integer,
 - a fraction in the form `n/d` (e.g. `1/2`).
 
-### Examples
+#### Examples
 
 - `A4`: generates the note `A` in the 4th octave.
+- `La4`: does the same as above, since `La = A` in the fixed-Do solfège.
 - `A#4`: generates the note `A` in the 4th octave, with the **sharp** modifier.
 - `(A#4, 2)`: generates the note `A` in the 4th octave, with the **sharp** modifier and a duration of 2 seconds.
 
-## Defining Harmonies
+### Defining Harmonies
 
-A `Harmony` is a list of `Note`s (see [Notes](#notes)) and is specified as:
+A `Harmony` is a list of `Note`s (see [Defining Notes](#defining-notes)) and is specified as:
 
 ```text
 [NOTE_1, NOTE_2, ..., NOTE_n]
@@ -169,13 +183,13 @@ where `NOTE_i` represents a `Note` for each index `i`.
 
 A single note `N`, when placed in the position of a harmony, will be regarded as the harmony `[N]`.
 
-### Examples
+#### Examples
 
 - `A4`: generates the harmony containing the single note `A4`.
 - `[A4, B4]`: generates the harmony containing the notes `A4` and `B4`.
 - `[(A4, 2), B4]`: generates the harmony containing the notes `A4` (with a duration of 2 seconds) and `B4`.
 
-## Defining Pauses
+### Defining Pauses
 
 A `Pause` represents a period of silence in the music.
 It is specified using the `PAUSE` keyword followed by a duration between braces, as seen below:
@@ -191,7 +205,7 @@ where `TIME` represents the duration in seconds and can either be:
 
 The duration is specified in the same way as for a note, and it represents how long the pause lasts.
 
-## Defining and Concatenating Songs
+### Defining and Concatenating Songs
 
 A `Song` is simply a concatenation of harmonies, pauses and other songs, with the base cases being harmonies and pauses. It is
 built as follows:
@@ -202,13 +216,13 @@ EXPR_1 -> ... -> EXPR_2
 
 where `EXPR_i` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
 
-### Examples
+#### Examples
 
 - `[A4, B4] -> PAUSE(1) -> A4`: generates a song with the harmony `[A4, B4]`, then a pause of one second, and finally a note `A` in the
     4th octave.
 - `PAUSE(1) -> x -> A4`: plays a song that has a pause of one second, then the song stored in `x`, and then one note `A` in the 4th octave.
 
-## TRANSPOSE and CHANGETIME
+### TRANSPOSE and CHANGETIME
 
 The `TRANSPOSE` operation shifts all notes in a song by a specified number of semitones. Positive values transpose the notes up, while negative values transpose them down. It is specified as follows:
 
@@ -218,7 +232,7 @@ TRANSPOSE(EXPR, SEMITONES)
 
 where `SEMITONES` is an integer and `EXPR` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
 
-The `CHANGETIME` operation changes the duration of all notes in a song by a specified factor. This allows you to speed up or slow down the timing of a composition. It is specified as follows:
+The `CHANGETIME` operation changes the duration of all notes and pauses in a song by a specified factor. This allows you to speed up or slow down the timing of a composition. It is specified as follows:
 
 ```text
 CHANGETIME(EXPR, FACTOR)
@@ -226,12 +240,12 @@ CHANGETIME(EXPR, FACTOR)
 
 where `FACTOR` is a positive integer of a fraction in the form `n/d` and  `EXPR` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
 
-### Examples
+#### Examples
 
 - `TRANSPOSE(A4, 2)`: transposes `A4` by 2 semitones.
 - `CHANGETIME((A4, 2), 0.5)`: halves the duration of `(A4, 2)` (which then simply becomes `A4`).
 
-## LET
+### LET
 
 The `LET` expression allows you to define a variable that can hold a song.
 Once defined, the variable can be used throughout the rest of your computation. A `LET`
@@ -244,10 +258,12 @@ LET variable = VALUE IN EXPR
 where `variable` is the name of the variable, `VALUE` is the value that will be mapped to `variable` and
 `EXPR` is the expression that will be evaluated once `variable` has been successfully binded.
 
-### Examples
+#### Examples
 
 - `LET x = A4 in x -> x`: generates `A4 -> A4`.
 - `LET x = A5 in LET y = B5 in x -> y`: generates `A5 -> B5`.
+
+## Commands
 
 # Basic examples
 

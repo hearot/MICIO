@@ -1036,7 +1036,7 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "filename", nargs="?", help="the file containing the code to be evaluated (default is a REPL)."
+        "filename", nargs="?", help="the file containing the code to execute (defaults to a REPL)"
     )
 
     args = parser.parse_args()
