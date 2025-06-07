@@ -76,6 +76,8 @@ operations are also provided: `TRANSPOSE` to tranpose by a given number of semit
 A code consists of a sequence of commands executed sequentially. Each command may be an assignment, which binds a `Song`
 to a variable; a function declaration; or an `EXPORT` statement, used to export a `Song` to WAVE file.
 
+MICIO supports line comments, which begin with `//`.
+
 MICIO ignores whitespaces and employs the following grammar:
 
 ```text
@@ -269,7 +271,8 @@ where `variable` is the name of the variable, `VALUE` is the value that will be 
 
 In the main folder of the repository you will be able to find four examples.
 
-- `example_1.txt` will generate the C major scale, and is the simplest example of the three.
-- `example_2.txt` will generate the refrain of *Never gonna give you up* by Rick Astley.
-- `example_3.txt` will generate the refrain of the theme of Dario Moccia's *Momento gaming* with three different durations.
-- `example_4.txt` will generate the refrain of *Ode to Joy* by Ludwig van Beethoven
+- `example_1a.micio` and `example_1b.micio` both generate the C major scale. The former uses letter notation, whereas the latter employs fixed-Do solfège.
+- `example_2.micio` generates the refrain of *Never gonna give you up* by Rick Astley.
+- `example_3a.micio` and `example_3b.micio` both generate the refrain of the theme of Dario Moccia's *Momento gaming* with three different durations. The former follows functional programming principles, whereas the latter adopts an imperative paradigm.
+- `example_4.micio` generates the refrain of *Ode to Joy* by Ludwig van Beethoven.
+- `example_6.micio` showcases the usage of assignment, functions and comments.

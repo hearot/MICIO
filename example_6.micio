@@ -1,6 +1,6 @@
 FUNCTION ADD_INTRO(X) := A4 -> B4 -> X;
 
 Y := (A4, 1/2);
-Y := (B4, 1/2); // Y now points to (B4, 1/2) instead of (A4, 1/2) 
+Y := C4; // Y now points to C4 instead of (A4, 1/2) 
 
-EXPORT(ADD_INTRO(C4) -> Y -> ADD_INTRO(A4), "example_6.wav");
+EXPORT(ADD_INTRO(Y) -> B4 -> ADD_INTRO(CHANGETIME(Y, 2)), "example_6.wav");
