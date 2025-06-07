@@ -538,10 +538,12 @@ def transform_parse_command_tree(tree: Tree) -> Command:
         case Tree(data="assign", children=[Token(type="IDENTIFIER", value=name), expr]):
             return Assign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
 
-        case Tree(data="fundecl", children=[Token(type="IDENTIFIER", value=name), Tree(data="params", children=params), expr]):
-            params = [param.value for param in params]
+        case Tree(data="fundecl", children=[Token(type="IDENTIFIER", value=name), Tree(data="params", children=identifiers), expr]):
+            tokens = cast(list[Token], identifiers)
+            params = [token.value for token in tokens]
 
-            if len(params) > len(set(params)):  # if there are multiple instances of the same variable
+            # if there are multiple instances of the same variable
+            if len(params) > len(set(params)):
                 raise SyntaxError(
                     f"Multiple instances of variables found in the declaration of the function {name}")
 
@@ -693,7 +695,8 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
             return change_time(evaluate_expr(music, env, state), value)
 
         case Var(name=name):
-            if env.contains_identifier(name):  # if `name` is in the environment
+            # if `name` is in the environment
+            if env.contains_identifier(name):
                 dvalue = env.get_value(name)
 
                 # if `name` points to a Location (i.e., an integer)
