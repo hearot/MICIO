@@ -290,6 +290,8 @@ We use the function declared in [Function Declarations](#function-declarations).
 
 ## Commands
 
+Commands in MICIO are separated by a semicolon `;`.
+
 ### Assignments
 
 You can assign an expression with `VAR := EXPR` or `VAR = EXPR`, where `VAR`
@@ -297,7 +299,7 @@ is a valid identifier in the grammar and `EXPR` is an expression for a `Song`.
 
 #### Examples
 
-- `x := A4`: assigns the song `[A4]` to the variable `x`.
+- `x := A4`: assigns the song `A4` to the variable `x`.
 - `scale := C4 -> D4 -> E4 -> F4 -> G4 -> A4 -> B4 -> C5`: assign the C major scale to `scale`.
 -  `y := F(x)`: assigns the evaluation of `F` with argument `x` to the variable `y`.
 
@@ -333,7 +335,7 @@ file.
 
 #### Examples
 
-- `EXPORT(A4 -> B4, "music.wav")`: exports the song `[A4] -> [B4]` to `music.wav`.
+- `EXPORT(A4 -> B4, "music.wav")`: exports the song `A4 -> B4` to `music.wav`.
 
 # Basic examples
 
