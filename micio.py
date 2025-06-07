@@ -544,6 +544,24 @@ def transform_parse_time_tree(tree: Tree) -> float:
                 f"Cannot parse an expression of unknown type {type(tree)}.")
 
 
+def transform_parse_note_tree(tree: Tree) -> Note:
+    match tree:
+        case Tree(data="note", children=[Token("NOTE", name), Token("MODIFIER", modifier), Token("NUMBER", octave)]):
+            return Note.generate(name=name, octave=octave, modifier=modifier)
+
+        case Tree(data="note", children=[Token("NOTE", name), Token("NUMBER", octave)]):
+            return Note.generate(name=name, octave=octave)
+
+        case Tree(data="note_time", children=[note, time]):
+            note = transform_parse_note_tree(note)
+            note.set_time(transform_parse_time_tree(time))
+            return note
+
+        case _:
+            raise TypeError(
+                f"Cannot parse an expression of unknown type {type(tree)}.")
+
+
 def transform_parse_expr_tree(tree: Tree) -> Expression:
     """
     Transforms the parse tree produced by the parser in an expression context
@@ -581,21 +599,10 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
             return Var(name=name)
 
         case Tree(data="harmony", children=children):
-            return Harmony(notes=[transform_parse_expr_tree(child) for child in children])
+            return Harmony(notes=[transform_parse_note_tree(child) for child in children])
 
         case Tree(data="pause", children=[time]):
             return Pause(time=int(1000 * transform_parse_time_tree(time)))
-
-        case Tree(data="note", children=[Token("NOTE", name), Token("MODIFIER", modifier), Token("NUMBER", octave)]):
-            return Note.generate(name=name, octave=octave, modifier=modifier)
-
-        case Tree(data="note", children=[Token("NOTE", name), Token("NUMBER", octave)]):
-            return Note.generate(name=name, octave=octave)
-
-        case Tree(data="note_time", children=[note, time]):
-            note = transform_parse_expr_tree(note)
-            note.set_time(transform_parse_time_tree(time))
-            return note
 
         case _:
             raise TypeError(
