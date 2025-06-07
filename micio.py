@@ -981,7 +981,7 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
             return env, state
 
 
-def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: bool = False) -> None:
+def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: bool = False) -> tuple[Environment, State]:
     """
     Evaluates the provided code.
 
@@ -999,7 +999,7 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
         if sysexit_on_error:
             sys.exit(1)
         else:
-            return
+            return env, state
 
     try:
         for command in ast:
@@ -1011,13 +1011,15 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
 
         # print(env)
         # print(state.store)
+
+        return env, state
     except Exception as e:
         print(f"Runtime error: {e}")
 
         if sysexit_on_error:
             sys.exit(1)
         else:
-            return
+            return env, state
 
 
 def main() -> None:
@@ -1068,7 +1070,7 @@ def main() -> None:
                 if to_eval == "exit":
                     break
                 else:
-                    evaluate_code(to_eval, env, state)
+                    env, state = evaluate_code(to_eval, env, state)
         except KeyboardInterrupt:
             pass
 
