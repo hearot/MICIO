@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Sequence
+from typing import cast, Literal, Sequence
 
 import argparse
 import sys
@@ -105,7 +105,7 @@ class Note:
             note = Note.generate("A", 4)  # A4
             longer_note = note.change_time(2.0)  # Doubles the duration of A4.
         """
-        return Note(frequency=self.frequency, time=self.time * value)
+        return Note(frequency=self.frequency, time=int(self.time * value))
 
     def set_time(self, time: float):
         """
@@ -162,10 +162,23 @@ class Harmony:
     notes: Sequence[Note]
 
 
-# Song represents the only type MICIO handles, stores, and
-# returns. Each song is simply a list of harmonies or
-# pauses.
-type Song = Sequence[Harmony | Pause]
+@dataclass
+class Song: # TODO: iterate over Song directly to avoid accessing steps outside of the class
+    steps: list[Harmony | Pause]
+
+    @staticmethod
+    def empty() -> Song:
+        return Song(steps=cast(list[Harmony | Pause], []))
+
+    def __add__(self, other: Song | Harmony | Pause) -> Song:
+        match other:
+            case Song():
+                return Song(steps=self.steps + other.steps)
+            case Harmony() | Pause():
+                return Song(steps=self.steps + [other])
+            case _:
+                raise TypeError(
+                    f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause.")
 
 
 @dataclass
@@ -297,10 +310,10 @@ class Export:
     filename: str
 
 
-type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply
+type Expression = Let | Concat | Transpose | Var | ChangeTime | FunctionApply
 
 type Command = Assign | FunctionDecl | Export
-type CommandSeq = Sequence[Command]
+type CommandSeq = list[Command]
 
 type Location = int
 type EVal = Song
@@ -312,12 +325,12 @@ type Environment = dict[str, DVal]
 
 @dataclass
 class State:
-    store: Sequence[MVal]
+    store: list[MVal]
     next_loc: Location
 
     @staticmethod
-    def empty_state() -> State:
-        return State(store=[], next_loc=0)
+    def empty() -> State:
+        return State(store=cast(list[MVal], []), next_loc=0)
 
     def allocate(self, value: MVal) -> tuple[Location, State]:
         loc = self.next_loc
@@ -404,7 +417,7 @@ def export_song(song: Song, output_name: str) -> None:
     """
     combined = AudioSegment.silent(duration=0)  # default segment
 
-    for item in song:
+    for item in song.steps:
         if isinstance(item, Pause):
             combined += AudioSegment.silent(
                 duration=item.time)  # adds a pause to the song, according to the evaluated expression
@@ -444,14 +457,14 @@ def transpose(song: Song, value: int) -> Song:
     Returns:
         Song: A new song with the transposed notes, maintaining the original structure and timing of harmonies and pauses.
     """
-    transposed = []
+    transposed = Song.empty()
 
-    for step in song:
+    for step in song.steps:
         if isinstance(step, Harmony):
-            transposed.append(
-                Harmony(notes=[note.transposed(value) for note in step.notes]))
+            transposed = transposed + \
+                Harmony(notes=[note.transposed(value) for note in step.notes])
         elif isinstance(step, Pause):
-            transposed.append(step)
+            transposed = transposed + step
         else:
             raise TypeError(f"{step} is not a Harmony nor a Pause.")
 
@@ -470,13 +483,14 @@ def change_time(song: Song, value: float) -> Song:
     Returns:
         Song: The song adjusted in speed.
     """
-    changed = []
-    for step in song:
+    changed = Song.empty()
+
+    for step in song.steps:
         if isinstance(step, Harmony):
-            changed.append(
-                Harmony(notes=[note.change_time(value) for note in step.notes]))
+            changed = changed + \
+                Harmony(notes=[note.change_time(value) for note in step.notes])
         elif isinstance(step, Pause):
-            changed.append(step.change_time(value))
+            changed = changed + step.change_time(value)
         else:
             raise TypeError(f"{step} is not a Harmony nor a Pause.")
     return changed
@@ -485,8 +499,15 @@ def change_time(song: Song, value: float) -> Song:
 def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
     match tree:
         case Tree(data="command_seq", children=children):
-            return [transform_parse_commandseq_tree(child) for child in children]
+            return [transform_parse_command_tree(child) for child in children]
 
+        case _:
+            raise TypeError(
+                f"Cannot parse a tree of unknown type {type(tree)}.")
+
+
+def transform_parse_command_tree(tree: Tree) -> Command:
+    match tree:
         case Tree(data="assign", children=[Token(type="IDENTIFIER", value=name), expr]):
             return Assign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
 
@@ -501,6 +522,10 @@ def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
 
         case Tree(data="export", children=[expr, Token(type="FILENAME", value=filename)]):
             return Export(expr=transform_parse_expr_tree(expr), filename=filename)
+
+        case _:
+            raise TypeError(
+                f"Cannot parse a command of unknown type {type(tree)}.")
 
 
 def transform_parse_expr_tree(tree: Tree) -> Expression:
@@ -561,6 +586,10 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
 
         case Tree(data="time", children=[Tree(data="fraction", children=[Token(type="NUMBER", value=num), Token(type="NUMBER", value=den)])]):
             return float(int(num) / int(den))
+
+        case _:
+            raise TypeError(
+                f"Cannot parse an expression of unknown type {type(tree)}.")
 
 
 def parse_ast(program: str) -> CommandSeq:
@@ -650,13 +679,15 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
                             f"{function_name} takes {len(function.params)} arguments but {len(args)} were given")
                 else:
                     raise TypeError(f"{function_name} is not a function.")
+            else:
+                raise NameError(f"Function '{function_name}' is not defined")
 
         case Harmony() | Pause():
-            return [ast]
+            return Song.empty() + ast
 
         case _:
             raise TypeError(
-                "Unknown expression.")
+                f"Cannot evaluate an expression of unknown type {type(ast)}.")
 
 
 def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Environment, State]:
@@ -740,7 +771,7 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
             return
 
 
-def main():
+def main() -> None:
     """
     The main entry point of the program, called only if this file has been executed directly through
     the Python interpreter. It handles command-line arguments and calls the musical code evaluation.
@@ -763,7 +794,7 @@ def main():
     # their corresponding songs.
     env: Environment = {}
 
-    state: State = State.empty_state()
+    state: State = State.empty()
 
     if args.filename:
         try:
