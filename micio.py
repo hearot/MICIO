@@ -734,7 +734,12 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
         case Assign(var=var, expr=expr):
             if var.name in env.keys():
                 loc = env[var.name]
-                state = state.update(loc, evaluate_expr(expr, env, state))
+
+                if isinstance(loc, int):
+                    state = state.update(loc, evaluate_expr(expr, env, state))
+                else:
+                    raise TypeError(
+                        "Cannot assign a new value to a variable that does not reference a valid location.")
             else:
                 loc, state = state.allocate(
                     evaluate_expr(expr, env, state))
