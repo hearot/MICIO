@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast, Literal, Sequence
+from typing import cast, Iterator, Literal, Sequence
 
 import argparse
 import sys
@@ -163,7 +163,7 @@ class Harmony:
 
 
 @dataclass
-class Song: # TODO: iterate over Song directly to avoid accessing steps outside of the class
+class Song:
     steps: list[Harmony | Pause]
 
     @staticmethod
@@ -179,6 +179,9 @@ class Song: # TODO: iterate over Song directly to avoid accessing steps outside 
             case _:
                 raise TypeError(
                     f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause.")
+
+    def __iter__(self) -> Iterator[Harmony | Pause]:
+        return iter(self.steps)
 
 
 @dataclass
@@ -417,7 +420,7 @@ def export_song(song: Song, output_name: str) -> None:
     """
     combined = AudioSegment.silent(duration=0)  # default segment
 
-    for item in song.steps:
+    for item in song:
         if isinstance(item, Pause):
             combined += AudioSegment.silent(
                 duration=item.time)  # adds a pause to the song, according to the evaluated expression
@@ -459,7 +462,7 @@ def transpose(song: Song, value: int) -> Song:
     """
     transposed = Song.empty()
 
-    for step in song.steps:
+    for step in song:
         if isinstance(step, Harmony):
             transposed = transposed + \
                 Harmony(notes=[note.transposed(value) for note in step.notes])
@@ -485,7 +488,7 @@ def change_time(song: Song, value: float) -> Song:
     """
     changed = Song.empty()
 
-    for step in song.steps:
+    for step in song:
         if isinstance(step, Harmony):
             changed = changed + \
                 Harmony(notes=[note.change_time(value) for note in step.notes])
