@@ -313,7 +313,7 @@ class Export:
     filename: str
 
 
-type Expression = Let | Concat | Transpose | Var | ChangeTime | FunctionApply
+type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply
 
 type Command = Assign | FunctionDecl | Export
 type CommandSeq = list[Command]
@@ -562,6 +562,19 @@ def transform_parse_note_tree(tree: Tree) -> Note:
                 f"Cannot parse an expression of unknown type {type(tree)}.")
 
 
+def transform_parse_step_tree(tree: Tree) -> Harmony | Pause:
+    match tree:
+        case Tree(data="harmony", children=children):
+            return Harmony(notes=[transform_parse_note_tree(child) for child in children])
+
+        case Tree(data="pause", children=[time]):
+            return Pause(time=int(1000 * transform_parse_time_tree(time)))
+
+        case _:
+            raise TypeError(
+                f"Cannot parse an expression of unknown type {type(tree)}.")
+
+
 def transform_parse_expr_tree(tree: Tree) -> Expression:
     """
     Transforms the parse tree produced by the parser in an expression context
@@ -584,7 +597,7 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
             # A step is a single harmony or a pause, but internally is already
             # regarded as a song with that single harmony/pause, i.e. [A4] is already
             # seen as [[A4]].
-            return transform_parse_expr_tree(subtree)
+            return Song.empty() + transform_parse_step_tree(subtree)
 
         case Tree(data="transpose", children=[subtree, Token(type="TRANSPOSE_VALUE", value=value)]):
             return Transpose(song=transform_parse_expr_tree(subtree), value=int(value))
@@ -597,12 +610,6 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
 
         case Tree(data="var", children=[Token(type="IDENTIFIER", value=name)]):
             return Var(name=name)
-
-        case Tree(data="harmony", children=children):
-            return Harmony(notes=[transform_parse_note_tree(child) for child in children])
-
-        case Tree(data="pause", children=[time]):
-            return Pause(time=int(1000 * transform_parse_time_tree(time)))
 
         case _:
             raise TypeError(
@@ -638,6 +645,9 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
         Song: The resulting song after evaluation.
     """
     match ast:
+        case Song():
+            return ast
+
         case Let(var=var, value=value, expr=expr):
             # Creates the temporary environment and state, which will
             # be used to evaluate the expression of the `Let`
@@ -661,10 +671,12 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
 
         case Var(name=name):
             if name in env.keys():  # if `name` is in the environment
+                dvalue = env[name]
+
                 # if `name` points to a Location (i.e., an integer)
-                if isinstance(env[name], int):
-                    return state.access(env[name])
-                elif isinstance(env[name], FunctionDecl):
+                if isinstance(dvalue, int):
+                    return state.access(dvalue)
+                elif isinstance(dvalue, FunctionDecl):
                     raise TypeError(f"{name} is a function, not a song.")
                 else:
                     raise TypeError(
@@ -674,33 +686,30 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
 
         case FunctionApply(name=function_name, args=args):
             if function_name in env.keys():
-                if isinstance(env[function_name], FunctionDecl):
-                    function: FunctionDecl = env[function_name]
+                dvalue = env[function_name]
 
+                if isinstance(dvalue, FunctionDecl):
                     # if the number of arguments matches the arity of the function
-                    if len(args) == len(function.params):
+                    if len(args) == len(dvalue.params):
                         temporary_env = env.copy()
 
                         # Creates the temporary environment and state, and
                         # binds each argument to the corresponding variable;
                         # it's done in order to evaluate the function.
-                        for arg, arg_value in zip(function.params, args):
+                        for arg, arg_value in zip(dvalue.params, args):
                             loc, temporary_state = state.allocate(
                                 evaluate_expr(arg_value, env, state))
 
                             temporary_env[arg] = loc
 
-                        return evaluate_expr(function.body, temporary_env, temporary_state)
+                        return evaluate_expr(dvalue.body, temporary_env, temporary_state)
                     else:  # arity not matched
                         raise TypeError(
-                            f"{function_name} takes {len(function.params)} arguments but {len(args)} were given")
+                            f"{function_name} takes {len(dvalue.params)} arguments but {len(args)} were given")
                 else:
                     raise TypeError(f"{function_name} is not a function.")
             else:
                 raise NameError(f"Function '{function_name}' is not defined")
-
-        case Harmony() | Pause():
-            return Song.empty() + ast
 
         case _:
             raise TypeError(
