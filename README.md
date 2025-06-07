@@ -68,27 +68,38 @@ operations are also provided: `TRANSPOSE` to tranpose by a given number of semit
 MICIO ignores whitespaces and employs the following grammar:
 
 ```text
+    command_seq: command (";" command?)*
+    ?command: assign | fundecl | export
+
+    assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
+    
+    fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr | "FUNCTION" IDENTIFIER "(" params ")" ":=" expr
+    params: IDENTIFIER ("," IDENTIFIER)*
+
+    export: "EXPORT(" expr "," "\"" FILENAME "\"" ")"
+    FILENAME: /[a-zA-Z0-9_\/.-]+\.[a-zA-Z0-9]+/
+
     ?expr: concat | mono | let
-    mono: step | transpose | paren | var | changetime
-    paren: "(" expr ")"
+    ?mono: step | transpose | paren | var | changetime | funapply
+    ?paren: "(" expr ")"
     var: IDENTIFIER
 
     let: "LET" IDENTIFIER "=" expr "IN" expr
+
+    funapply: IDENTIFIER "(" arg_list ")"
+    arg_list: expr ("," expr)*
+
     transpose: "TRANSPOSE(" expr "," TRANSPOSE_VALUE ")"
     changetime: "CHANGETIME(" expr "," time ")"
 
     step: harmony | pause
     
-    harmony: note | note_time | "[" sequence_notes "]"
+    harmony: mono_note | "[" mono_note ("," mono_note)*"]"
 
-    sequence_notes: mono_note | mono_note "," sequence_notes
-
-    mono_note: note | note_time
+    ?mono_note: note | note_time
     note_time: "(" note "," time ")"
 
-    note: note_with_modifier | note_without_modifier
-    note_with_modifier: NOTE MODIFIER NUMBER
-    note_without_modifier: NOTE NUMBER
+    note: NOTE MODIFIER? NUMBER
 
     pause: "PAUSE(" time ")"
 
@@ -99,11 +110,16 @@ MICIO ignores whitespaces and employs the following grammar:
 
     TRANSPOSE_VALUE: /[-]?[0-9]+/ 
 
+    NOTE: "A" | "B" | "C" | "D" | "E" | "F" | "G" | "Do" | "Re" | "Mi" | "Fa" | "Sol" | "So" | "La" | "Si" | "Ti" | "H"
     MODIFIER: "#" | "b"
-    NOTE: "A" | "B" | "C" | "D" | "E" | "F" | "G" 
-    
+        
     IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
     NUMBER: /[0-9]+/
+
+    COMMENT: /\/\/[^\n]*/
+    %import common.WS
+    %ignore COMMENT
+    %ignore WS
 ```
 
 ## Defining Notes

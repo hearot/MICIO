@@ -47,9 +47,9 @@ class Note:
     time: int = 1000  # ms
 
     @staticmethod
-    def generate(name: NoteName, octave: int, modifier: NoteModifier | None = None):
+    def generate(name: NoteName, octave: int, modifier: NoteModifier | None = None) -> Note:
         """
-        Generate a Note object based on the given note name, octave, and optional modifier (diesis or flat). It yields the
+        Generate a Note object based on the given note name, octave, and optional modifier (diesis or flat). It returns the
         note according to the frequencies stored in `NOTE_FREQUENCIES`.
 
         Args:
@@ -144,7 +144,7 @@ class Pause:
 
         Example:
             pause = Pause(1000)  # Pause for one second
-            longer_pause = note.change_time(2.0)  # Doubles the duration of the pause, i.e. pause for two seconds.
+            longer_pause = pause.change_time(2.0)  # Doubles the duration of the pause, i.e. pause for two seconds.
         """
         return Pause(time=int(self.time * value))
 
@@ -164,13 +164,37 @@ class Harmony:
 
 @dataclass
 class Song:
+    """
+    A dataclass representing a song, namely a sequence of
+    harmonies and pauses. It is the fundamental type employed by
+    MICIO.
+
+    Attributes:
+        steps (list[Harmony | Pause]): The sequence of harmonies and pauses that make up the song.
+    """
+
     steps: list[Harmony | Pause]
 
     @staticmethod
     def empty() -> Song:
+        """
+        Creates an empty song, with no harmonies nor pauses.
+
+        Returns:
+            Song: the empty Song object.
+        """
         return Song(steps=cast(list[Harmony | Pause], []))
 
     def __add__(self, other: Song | Harmony | Pause) -> Song:
+        """
+        Concatenates the current Song with another Song, or appends a Harmony or Pause to it.
+
+        Args:
+            other: A Song, Harmony, or Pause object to append or concatenate.
+
+        Returns:
+            Song: A new Song instance resulting from the concatenation or append operation.
+        """
         match other:
             case Song():
                 return Song(steps=self.steps + other.steps)
@@ -181,6 +205,12 @@ class Song:
                     f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause.")
 
     def __iter__(self) -> Iterator[Harmony | Pause]:
+        """
+        Compute the iterator over the elements which compose the Song.
+
+        Returns:
+            Iterator[Harmony | Pause]: An iterator over the Harmony and Pause elements in the Song.
+        """
         return iter(self.steps)
 
 
@@ -319,55 +349,164 @@ type Command = Assign | FunctionDecl | Export
 type CommandSeq = list[Command]
 
 type Location = int
-type EVal = Song
+
+# memorizable values
 type MVal = Song
+
+# denotable values
 type DVal = Location | FunctionDecl  # TODO: constants?
 
 
 @dataclass
 class Environment:
+    """
+    A dataclass representing an environment that maps string identifiers
+    to denotable values (i.e., locations which point to a Song expression in the
+    current state, or functions).
+
+    Attributes:
+        env (dict[str, DVal]): A dictionary mapping identifiers to their bound values.
+    """
+
     env: dict[str, DVal]
 
     @staticmethod
     def empty() -> Environment:
+        """
+        Creates an empty environment with no bindings.
+
+        Returns:
+            Environment: An empty Environment instance.
+        """
         return Environment(env=cast(dict[str, DVal], {}))
 
     def bind(self, identifier: str, value: DVal) -> Environment:
+        """
+        Returns a new Environment with the given identifier
+        bound to the specified value.
+
+        Args:
+            identifier (str): The variable name to bind.
+            value (DVal): The value to associate with the identifier.
+
+        Returns:
+            Environment: A new Environment instance which 
+                         includes the new binding.
+        """
         new_env = self.env.copy()
         new_env[identifier] = value
         return Environment(env=new_env)
 
     def contains_identifier(self, identifier: str) -> bool:
+        """
+        Checks if the environment contains a binding
+        for the given identifier.
+
+        Args:
+            identifier (str): The variable name to check.
+
+        Returns:
+            bool: True if the identifier exists in the environment, False otherwise.
+        """
         return identifier in self.env.keys()
 
     def copy(self) -> Environment:
+        """
+        Creates a shallow copy of the environment.
+
+        Returns:
+            Environment: A new Environment instance with a (shallow)
+                         copy of the current bindings.
+        """
         return Environment(env=self.env.copy())
 
     def get_value(self, identifier: str) -> DVal:
+        """
+        Retrieves the value bound to the given identifier.
+
+        Args:
+            identifier (str): The variable name to look up.
+
+        Returns:
+            DVal: The value associated with the identifier.
+        """
         return self.env[identifier]
 
 
 @dataclass
 class State:
+    """
+    A dataclass representing the state of an execution. It binds locations
+    to Song expressions.
+
+    Attributes:
+        store (list[MVal]): A list representing memory storing denotable values (i.e., MVal,
+                            which is exactly Song).
+        next_loc (Location): The next available location in the store.
+    """
+
     store: list[MVal]
     next_loc: Location
 
     @staticmethod
     def empty() -> State:
+        """
+        Creates an empty state with an empty store and next_loc initialized to 0.
+
+        Returns:
+            State: An empty State instance.
+        """
         return State(store=cast(list[MVal], []), next_loc=0)
 
     def allocate(self, value: MVal) -> tuple[Location, State]:
+        """
+        Allocates a new location in the store for the given value.
+
+        Args:
+            value (MVal): The value to store.
+
+        Returns:
+            tuple[Location, State]: A tuple containing the location allocated for the value,
+                                    and a new State instance with the value added to the store
+                                    and next_loc incremented.
+        """
         loc = self.next_loc
 
         return loc, State(store=self.store + [value], next_loc=loc + 1)
 
     def copy(self) -> State:
+        """
+        Creates a shallow copy of the current state.
+
+        Returns:
+            State: A new State instance with a (shallow) copy of the store
+                   and the same next_loc.
+        """
         return State(store=self.store.copy(), next_loc=self.next_loc)
 
     def update(self, addr: Location, value: MVal) -> State:
-        return State(store=self.store[:addr-1] + [value] + self.store[addr+1:], next_loc=self.next_loc)
+        """
+        Updates the value stored at a given location, returning a new state.
+
+        Args:
+            addr (Location): The location to update.
+            value (MVal): The new value to store.
+
+        Returns:
+            State: A new State instance with the updated store.
+        """
+        return State(store=self.store[:addr] + [value] + self.store[addr+1:], next_loc=self.next_loc)
 
     def access(self, addr: Location) -> MVal:
+        """
+        Retrieves the value stored at the specified location.
+
+        Args:
+            addr (Location): The location to access.
+
+        Returns:
+            MVal: The value stored at the location.
+        """
         return self.store[addr]
 
 
@@ -523,41 +662,17 @@ def change_time(song: Song, value: float) -> Song:
     return changed
 
 
-def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
-    match tree:
-        case Tree(data="command_seq", children=children):
-            return [transform_parse_command_tree(child) for child in children]
-
-        case _:
-            raise TypeError(
-                f"Cannot parse a tree of unknown type {type(tree)}.")
-
-
-def transform_parse_command_tree(tree: Tree) -> Command:
-    match tree:
-        case Tree(data="assign", children=[Token(type="IDENTIFIER", value=name), expr]):
-            return Assign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
-
-        case Tree(data="fundecl", children=[Token(type="IDENTIFIER", value=name), Tree(data="params", children=identifiers), expr]):
-            tokens = cast(list[Token], identifiers)
-            params = [token.value for token in tokens]
-
-            # if there are multiple instances of the same variable
-            if len(params) > len(set(params)):
-                raise SyntaxError(
-                    f"Multiple instances of variables found in the declaration of the function {name}")
-
-            return FunctionDecl(name=name, params=params, body=transform_parse_expr_tree(expr))
-
-        case Tree(data="export", children=[expr, Token(type="FILENAME", value=filename)]):
-            return Export(expr=transform_parse_expr_tree(expr), filename=filename)
-
-        case _:
-            raise TypeError(
-                f"Cannot parse a command of unknown type {type(tree)}.")
-
-
 def transform_parse_time_tree(tree: Tree) -> float:
+    """
+    Transforms the parse tree produced by the parser in a time context
+    into a float instance.
+
+    Args:
+        tree (Tree): The parse tree generated by the Lark parser; MUST come from a time (`time`) tree.
+
+    Returns:
+        float: The seconds deduced by the tree.
+    """
     match tree:
         case Tree(data="time", children=[Token(type="NUMBER", value=seconds)]):
             return float(seconds)
@@ -571,6 +686,16 @@ def transform_parse_time_tree(tree: Tree) -> float:
 
 
 def transform_parse_note_tree(tree: Tree) -> Note:
+    """
+    Transforms the parse tree produced by the parser in a note context
+    into a structured instance of Note.
+
+    Args:
+        tree (Tree): The parse tree generated by the Lark parser; MUST come from a note (`note` or `note_time`) tree.
+
+    Returns:
+        Note: The structured instance of Note, deduced by the tree.
+    """
     match tree:
         case Tree(data="note", children=[Token("NOTE", name), Token("MODIFIER", modifier), Token("NUMBER", octave)]):
             return Note.generate(name=name, octave=octave, modifier=modifier)
@@ -589,6 +714,17 @@ def transform_parse_note_tree(tree: Tree) -> Note:
 
 
 def transform_parse_step_tree(tree: Tree) -> Harmony | Pause:
+    """
+    Transforms the parse tree produced by the parser in a step context
+    (i.e., a harmony or a pause) into a structured expression made of
+    dataclasses.
+
+    Args:
+        tree (Tree): The parse tree generated by the Lark parser; MUST come from a step (`step`) tree.
+
+    Returns:
+        Harmony | Pause: The structured instance of the corresponding dataclass.
+    """
     match tree:
         case Tree(data="harmony", children=children):
             return Harmony(notes=[transform_parse_note_tree(child) for child in children])
@@ -642,13 +778,68 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
                 f"Cannot parse an expression of unknown type {type(tree)}.")
 
 
+def transform_parse_command_tree(tree: Tree) -> Command:
+    """
+    Transforms the parse tree produced by the parser in a command context
+    into a structured dataclass.
+
+    Args:
+        tree (Tree): The parse tree generated by the Lark parser; MUST come from a command (`command`) tree.
+
+    Returns:
+        Command: The structured instance of the dataclass corresponding to the command.
+    """
+    match tree:
+        case Tree(data="assign", children=[Token(type="IDENTIFIER", value=name), expr]):
+            return Assign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
+
+        case Tree(data="fundecl", children=[Token(type="IDENTIFIER", value=name), Tree(data="params", children=identifiers), expr]):
+            tokens = cast(list[Token], identifiers)
+            params = [token.value for token in tokens]
+
+            # if there are multiple instances of the same variable
+            if len(params) > len(set(params)):
+                raise SyntaxError(
+                    f"Multiple instances of variables found in the declaration of the function {name}")
+
+            return FunctionDecl(name=name, params=params, body=transform_parse_expr_tree(expr))
+
+        case Tree(data="export", children=[expr, Token(type="FILENAME", value=filename)]):
+            return Export(expr=transform_parse_expr_tree(expr), filename=filename)
+
+        case _:
+            raise TypeError(
+                f"Cannot parse a command of unknown type {type(tree)}.")
+
+
+def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
+    """
+    Transforms the parse tree produced by the parser in the context of
+    a sequence of commands into a structured sequence made of command dataclasses.
+
+    Args:
+        tree (Tree): The parse tree generated by the Lark parser;
+                     MUST come from a command_seq (`command_seq`) tree.
+
+    Returns:
+        CommandSeq: The structured sequence of commands extracted from the parse tree.
+    """
+    match tree:
+        case Tree(data="command_seq", children=children):
+            return [transform_parse_command_tree(child) for child in children]
+
+        case _:
+            raise TypeError(
+                f"Cannot parse a tree of unknown type {type(tree)}.")
+
+
 def parse_ast(program: str) -> CommandSeq:
     """
     Parses the input string expression into a sequence of abstract syntax trees (ASTs)
     composed of dataclasses.
 
     Args:
-        expression (str): The string expression to be parsed.
+        program (str): The string expression to be parsed.
 
     Returns:
         CommandSeq: The resulting sequence of parsed commands as ASTs.
@@ -795,7 +986,9 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
     Evaluates the provided code.
 
     Args:
-        code (str): The code to be evaluated.
+        code (str): The code to be executed.
+        env (Environment): The environment the code should start be executed on.ù
+        state (State): The state the code should start be executed on.
         sysexit_on_error (bool): Whether to exit the program on error.
     """
     try:
