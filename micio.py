@@ -531,6 +531,19 @@ def transform_parse_command_tree(tree: Tree) -> Command:
                 f"Cannot parse a command of unknown type {type(tree)}.")
 
 
+def transform_parse_time_tree(tree: Tree) -> float:
+    match tree:
+        case Tree(data="time", children=[Token(type="NUMBER", value=seconds)]):
+            return float(seconds)
+
+        case Tree(data="time", children=[Tree(data="fraction", children=[Token(type="NUMBER", value=num), Token(type="NUMBER", value=den)])]):
+            return float(int(num) / int(den))
+
+        case _:
+            raise TypeError(
+                f"Cannot parse an expression of unknown type {type(tree)}.")
+
+
 def transform_parse_expr_tree(tree: Tree) -> Expression:
     """
     Transforms the parse tree produced by the parser in an expression context
@@ -559,7 +572,7 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
             return Transpose(song=transform_parse_expr_tree(subtree), value=int(value))
 
         case Tree(data="changetime", children=[subtree, time]):
-            return ChangeTime(song=transform_parse_expr_tree(subtree), value=transform_parse_expr_tree(time))
+            return ChangeTime(song=transform_parse_expr_tree(subtree), value=transform_parse_time_tree(time))
 
         case Tree(data="funapply", children=[Token(type="IDENTIFIER", value=name), Tree(data="arg_list", children=args)]):
             return FunctionApply(name=name, args=[transform_parse_expr_tree(arg) for arg in args])
@@ -571,7 +584,7 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
             return Harmony(notes=[transform_parse_expr_tree(child) for child in children])
 
         case Tree(data="pause", children=[time]):
-            return Pause(time=int(1000 * transform_parse_expr_tree(time)))
+            return Pause(time=int(1000 * transform_parse_time_tree(time)))
 
         case Tree(data="note", children=[Token("NOTE", name), Token("MODIFIER", modifier), Token("NUMBER", octave)]):
             return Note.generate(name=name, octave=octave, modifier=modifier)
@@ -581,14 +594,8 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
 
         case Tree(data="note_time", children=[note, time]):
             note = transform_parse_expr_tree(note)
-            note.set_time(transform_parse_expr_tree(time))
+            note.set_time(transform_parse_time_tree(time))
             return note
-
-        case Tree(data="time", children=[Token(type="NUMBER", value=seconds)]):
-            return int(seconds)
-
-        case Tree(data="time", children=[Tree(data="fraction", children=[Token(type="NUMBER", value=num), Token(type="NUMBER", value=den)])]):
-            return float(int(num) / int(den))
 
         case _:
             raise TypeError(
