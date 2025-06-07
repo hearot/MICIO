@@ -323,7 +323,28 @@ type EVal = Song
 type MVal = Song
 type DVal = Location | FunctionDecl  # TODO: constants?
 
-type Environment = dict[str, DVal]
+
+@dataclass
+class Environment:
+    env: dict[str, DVal]
+
+    @staticmethod
+    def empty() -> Environment:
+        return Environment(env=cast(dict[str, DVal], {}))
+
+    def bind(self, identifier: str, value: DVal) -> Environment:
+        new_env = self.env.copy()
+        new_env[identifier] = value
+        return Environment(env=new_env)
+
+    def contains_identifier(self, identifier: str) -> bool:
+        return identifier in self.env.keys()
+
+    def copy(self) -> Environment:
+        return Environment(env=self.env.copy())
+
+    def get_value(self, identifier: str) -> DVal:
+        return self.env[identifier]
 
 
 @dataclass
@@ -339,6 +360,9 @@ class State:
         loc = self.next_loc
 
         return loc, State(store=self.store + [value], next_loc=loc + 1)
+
+    def copy(self) -> State:
+        return State(store=self.store.copy(), next_loc=self.next_loc)
 
     def update(self, addr: Location, value: MVal) -> State:
         return State(store=self.store[:addr-1] + [value] + self.store[addr+1:], next_loc=self.next_loc)
@@ -655,8 +679,7 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
             loc, temporary_state = state.allocate(
                 evaluate_expr(value, env, state))
 
-            temporary_env = env.copy()
-            temporary_env[var.name] = loc
+            temporary_env = env.bind(var.name, loc)
 
             return evaluate_expr(expr, temporary_env, temporary_state)
 
@@ -670,8 +693,8 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
             return change_time(evaluate_expr(music, env, state), value)
 
         case Var(name=name):
-            if name in env.keys():  # if `name` is in the environment
-                dvalue = env[name]
+            if env.contains_identifier(name):  # if `name` is in the environment
+                dvalue = env.get_value(name)
 
                 # if `name` points to a Location (i.e., an integer)
                 if isinstance(dvalue, int):
@@ -685,22 +708,23 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
             raise NameError(f"Variable '{name}' is not defined")
 
         case FunctionApply(name=function_name, args=args):
-            if function_name in env.keys():
-                dvalue = env[function_name]
+            if env.contains_identifier(function_name):
+                dvalue = env.get_value(function_name)
 
                 if isinstance(dvalue, FunctionDecl):
                     # if the number of arguments matches the arity of the function
                     if len(args) == len(dvalue.params):
                         temporary_env = env.copy()
+                        temporary_state = state.copy()
 
                         # Creates the temporary environment and state, and
                         # binds each argument to the corresponding variable;
                         # it's done in order to evaluate the function.
                         for arg, arg_value in zip(dvalue.params, args):
-                            loc, temporary_state = state.allocate(
+                            loc, temporary_state = temporary_state.allocate(
                                 evaluate_expr(arg_value, env, state))
 
-                            temporary_env[arg] = loc
+                            temporary_env = temporary_env.bind(arg, loc)
 
                         return evaluate_expr(dvalue.body, temporary_env, temporary_state)
                     else:  # arity not matched
@@ -732,8 +756,8 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
     """
     match ast:
         case Assign(var=var, expr=expr):
-            if var.name in env.keys():
-                loc = env[var.name]
+            if env.contains_identifier(var.name):
+                loc = env.get_value(var.name)
 
                 if isinstance(loc, int):
                     state = state.update(loc, evaluate_expr(expr, env, state))
@@ -744,14 +768,12 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
                 loc, state = state.allocate(
                     evaluate_expr(expr, env, state))
 
-                env = env.copy()
-                env[var.name] = loc
+                env = env.bind(var.name, loc)
 
             return env, state
 
-        case FunctionDecl(name=function_name, params=params, body=body):
-            env = env.copy()
-            env[function_name] = ast
+        case FunctionDecl(name=function_name):
+            env = env.bind(function_name, ast)
 
             return env, state
 
@@ -821,11 +843,8 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # The default dictionary, which maps variable names to
-    # their corresponding songs.
-    env: Environment = {}
-
-    state: State = State.empty()
+    env = Environment.empty()
+    state = State.empty()
 
     if args.filename:
         try:
