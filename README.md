@@ -22,7 +22,7 @@ The main MICIO script fully complies with [mypy](https://github.com/python/mypy)
     - [Defining Harmonies](#defining-harmonies)
     - [Defining Pauses](#defining-pauses)
     - [Defining and Concatenating Songs](#defining-and-concatenating-songs)
-    - [TRANSPOSE and CHANGETIME](#transpose-and-changetime)
+    - [TRANSPOSE, CHANGETIME and REPEAT](#transpose-changetime-and-repeat)
     - [LET](#let)
     - [Applying a Function](#applying-a-function)
   - [Commands](#commands)
@@ -183,7 +183,7 @@ where `TIME` represents the duration in seconds and can either be:
 
 ### Defining Harmonies
 
-A `Harmony` is a list of `Note`s (see [Defining Notes](#defining-notes)) and is specified as:
+A `Harmony` is an *unordered* list of `Note`s (see [Defining Notes](#defining-notes)) and is specified as:
 
 ```text
 [NOTE_1, NOTE_2, ..., NOTE_n]

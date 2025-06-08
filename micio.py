@@ -146,7 +146,7 @@ class Pause:
 
         Example:
             pause = Pause(1000)  # Pause for one second
-            longer_pause = pause.change_time(2.0)  # Doubles the duration of the pause, i.e. pause for two seconds.
+            longer_pause = pause.change_time(2.0)  # Doubles the duration of the pause, i.e., pauses for two seconds.
         """
         return Pause(time=int(self.time * value))
 
@@ -192,7 +192,8 @@ class Song:
 
     def __add__(self, other: Song | Harmony | Pause) -> Song:
         """
-        Concatenates the current Song with another Song, or appends a Harmony or Pause to it.
+        Concatenates the current Song with another Song, or appends a Harmony or Pause to
+        the end of it.
 
         Args:
             other: A Song, Harmony, or Pause object to append or concatenate.
@@ -247,7 +248,7 @@ class Let:
     Attributes:
         var (Var): The variable being defined.
         value (Expression): The value being assigned to the variable.
-        expr (Expression): The expression that will be evaluated using the defined variable.
+        expr (Expression): The expression that will be evaluated with the defined variable.
     """
     var: Var
     value: Expression
@@ -352,6 +353,13 @@ def change_time(song: Song, value: float) -> Song:
 
 @dataclass
 class Repeat:
+    """
+    A dataclass representing the repetition of a musical expression a specified number of times.
+
+    Attributes:
+        song (Expression): The expression to be repeated.
+        times (int): The number of times to repeat the expression.
+    """
     song: Expression
     times: int
 
@@ -373,6 +381,15 @@ class FunctionApply:
 
 @dataclass
 class IfElseExpr:
+    """
+    A dataclass representing a conditional expression which evaluates
+    to one of two expressions based on the result of a boolean condition.
+
+    Attributes:
+        cond (Boolean): The condition to evaluate.
+        if_true (Expression): The expression to evaluate if the condition is true.
+        if_false (Expression): The expression to evaluate if the condition is false.
+    """
     cond: Boolean
     if_true: Expression
     if_false: Expression
@@ -380,6 +397,15 @@ class IfElseExpr:
 
 @dataclass
 class Map:
+    """
+    A dataclass representing the mapping of an expression over each step of a song.
+
+    Attributes:
+        iter_var (Var): The variable used for iteration.
+        expr (Expression): The song expression to iterate over.
+        return_expr (Expression): The expression to evaluate for each step,
+                                  after having bound iter_var.
+    """
     iter_var: Var
     expr: Expression
     return_expr: Expression
@@ -445,8 +471,8 @@ def export_song(song: Song, output_name: str) -> None:
     """
     Exports the given song as a `.wav` file. The function combines multiple
     notes coming from the same harmony, handles pauses, and finally generates the audio
-    corresponding to the concatenation of said handles and pauses.
-    It uses `AudioSegment` and `Sine` from `pydub` to create, mix and overlay the audio.
+    corresponding to the concatenation of said harmonies and pauses.
+    It uses `AudioSegment` and `Sawtooth` from `pydub` to create, mix and overlay the audio.
 
     Args:
         song (Song): The song to be exported, represented as a sequence of harmonies and pauses.
@@ -533,12 +559,14 @@ class Environment:
     env: dict[str, DVal]
 
     @staticmethod
-    def empty() -> Environment:
+    def default() -> Environment:
         """
-        Creates an empty environment with no bindings.
+        Creates the default environment
+        (i.e., an empty environment with the empty song object
+        bound to the EMPTY identifier).
 
         Returns:
-            Environment: An empty Environment instance.
+            Environment: The default Environment instance.
         """
         return Environment(env=cast(dict[str, DVal], {})).bind("EMPTY", Song.empty())
 
@@ -874,7 +902,7 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
 
         case Tree(data="step", children=[subtree]):
             # A step is a single harmony or a pause, but internally is already
-            # regarded as a song with that single harmony/pause, i.e. [A4] is already
+            # regarded as a song with that single harmony/pause, i.e., [A4] is already
             # seen as [[A4]].
             return Song.empty() + transform_parse_step_tree(subtree)
 
@@ -1184,8 +1212,8 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
 
     Args:
         code (str): The code to be executed.
-        env (Environment): The environment the code should start be executed on.ù
-        state (State): The state the code should start be executed on.
+        env (Environment): The environment in which the code should start execution.
+        state (State): The state in which the code should start execution.
         sysexit_on_error (bool): Whether to exit the program on error.
     """
     initial_env, initial_state = env, state
@@ -1226,7 +1254,7 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
 
 def main() -> None:
     """
-    The main entry point of the program, called only if this file has been executed directly through
+    The main entry point of the program, called only if this file is executed directly through
     the Python interpreter. It handles command-line arguments and calls the musical code evaluation.
 
     The program can either (depending on the command-line arguments):
@@ -1243,7 +1271,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    env = Environment.empty()
+    env = Environment.default()
     state = State.empty()
 
     if args.filename:
