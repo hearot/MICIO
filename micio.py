@@ -208,7 +208,7 @@ class Song:
                 return Song(steps=self.steps + [other])
             case _:
                 raise TypeError(
-                    f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause.")
+                    f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause")
 
     def __eq__(self, other: object) -> bool:
         """
@@ -327,7 +327,7 @@ def transpose(song: Song, value: int) -> Song:
         elif isinstance(step, Pause):
             transposed = transposed + step
         else:
-            raise TypeError(f"{step} is not a Harmony nor a Pause.")
+            raise TypeError(f"{step} is not a Harmony nor a Pause")
 
     return transposed
 
@@ -367,7 +367,7 @@ def change_time(song: Song, value: float) -> Song:
         elif isinstance(step, Pause):
             changed = changed + step.change_time(value)
         else:
-            raise TypeError(f"{step} is not a Harmony nor a Pause.")
+            raise TypeError(f"{step} is not a Harmony nor a Pause")
     return changed
 
 
@@ -525,7 +525,7 @@ def export_song(song: Song, output_name: str) -> None:
 
             combined += harmony_audio  # adds the segment to the final song
         else:
-            raise TypeError(f"{item} is neither a Pause nor a Harmony.")
+            raise TypeError(f"{item} is neither a Pause nor a Harmony")
 
     # add a final silent segment for 100ms
     combined += AudioSegment.silent(duration=100)
@@ -736,7 +736,7 @@ class State:
         """
         if not (0 <= addr < len(self.store)):
             raise IndexError(
-                f"Location {addr} out of bounds for state update.")
+                f"Location {addr} out of bounds for state update")
 
         return State(store=self.store[:addr] + [value] + self.store[addr+1:], next_loc=self.next_loc)
 
@@ -845,7 +845,7 @@ def transform_parse_boolean_tree(tree: Tree) -> Boolean:
 
         case _:
             raise TypeError(
-                f"Cannot parse an expression of unknown type {type(tree)}.")
+                f"Cannot parse an expression of unknown type {type(tree)}")
 
 
 def transform_parse_time_tree(tree: Tree) -> float:
@@ -868,7 +868,7 @@ def transform_parse_time_tree(tree: Tree) -> float:
 
         case _:
             raise TypeError(
-                f"Cannot parse an expression of unknown type {type(tree)}.")
+                f"Cannot parse an expression of unknown type {type(tree)}")
 
 
 def transform_parse_note_tree(tree: Tree) -> Note:
@@ -896,7 +896,7 @@ def transform_parse_note_tree(tree: Tree) -> Note:
 
         case _:
             raise TypeError(
-                f"Cannot parse an expression of unknown type {type(tree)}.")
+                f"Cannot parse an expression of unknown type {type(tree)}")
 
 
 def transform_parse_step_tree(tree: Tree) -> Harmony | Pause:
@@ -920,7 +920,7 @@ def transform_parse_step_tree(tree: Tree) -> Harmony | Pause:
 
         case _:
             raise TypeError(
-                f"Cannot parse an expression of unknown type {type(tree)}.")
+                f"Cannot parse an expression of unknown type {type(tree)}")
 
 
 def transform_parse_expr_tree(tree: Tree) -> Expression:
@@ -972,7 +972,7 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
 
         case _:
             raise TypeError(
-                f"Cannot parse an expression of unknown type {type(tree)}.")
+                f"Cannot parse an expression of unknown type {type(tree)}")
 
 
 def transform_parse_command_tree(tree: Tree) -> Command:
@@ -1017,7 +1017,7 @@ def transform_parse_command_tree(tree: Tree) -> Command:
 
         case _:
             raise TypeError(
-                f"Cannot parse a command of unknown type {type(tree)}.")
+                f"Cannot parse a command of unknown type {type(tree)}")
 
 
 def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
@@ -1038,7 +1038,7 @@ def transform_parse_commandseq_tree(tree: Tree) -> CommandSeq:
 
         case _:
             raise TypeError(
-                f"Cannot parse a tree of unknown type {type(tree)}.")
+                f"Cannot parse a tree of unknown type {type(tree)}")
 
 
 def parse_ast(program: str) -> CommandSeq:
@@ -1081,7 +1081,7 @@ def evaluate_bool(boolean: Boolean, env: Environment, state: State) -> bool:
 
         case _:
             raise TypeError(
-                f"Cannot deduce a boolean from an expression of unknown type {type(boolean)}.")
+                f"Cannot deduce a boolean from an expression of unknown type {type(boolean)}")
 
 
 def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
@@ -1142,11 +1142,10 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
                 elif isinstance(dvalue, Song):
                     return dvalue
                 elif isinstance(dvalue, FunctionDecl):
-                    # TODO: . in errors?
-                    raise TypeError(f"{name} is a function, not a song.")
+                    raise TypeError(f"{name} is a function, not a song")
                 else:
                     raise TypeError(
-                        f"Couldn't convert {name} to a proper location or type.")
+                        f"Couldn't convert {name} to a proper location or type")
 
             raise NameError(f"Variable '{name}' is not defined")
 
@@ -1174,7 +1173,7 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
                         raise TypeError(
                             f"{function_name} takes {len(dvalue.params)} arguments but {len(args)} were given")
                 else:
-                    raise TypeError(f"{function_name} is not a function.")
+                    raise TypeError(f"{function_name} is not a function")
             else:
                 raise NameError(f"Function '{function_name}' is not defined")
 
@@ -1186,7 +1185,7 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
 
         case _:
             raise TypeError(
-                f"Cannot evaluate an expression of unknown type {type(ast)}.")
+                f"Cannot evaluate an expression of unknown type {type(ast)}")
 
 
 def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Environment, State]:
@@ -1207,8 +1206,10 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
         case ConstAssign(const=const, expr=expr):
             if env.contains_identifier(const):
                 raise TypeError(
-                    "Cannot make an existing identifier into a constant.")
+                    "Cannot make an existing identifier into a constant")
             else:
+                # binds the song directly to the identifier
+                # -- no location redirecting to a position in the state's storage
                 env = env.bind(const, evaluate_expr(expr, env, state))
 
             return env, state
@@ -1218,22 +1219,26 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
                 loc = env.get_value(var.name)
 
                 if isinstance(loc, int):
+                    # if var already exists, just update its value in the state's storage
                     state = state.update(loc, evaluate_expr(expr, env, state))
                 elif isinstance(loc, Song):
                     raise TypeError(
-                        "Cannot assign a new value to an existing constant.")
+                        "Cannot assign a new value to an existing constant")
                 else:
                     raise TypeError(
-                        "Cannot assign a new value to a variable that does not reference a valid location.")
+                        "Cannot assign a new value to a variable that does not reference a valid location")
             else:
                 loc, state = state.allocate(
+                    # allocate the memory in the state's storage
                     evaluate_expr(expr, env, state))
 
+                # bind the location to the identifier
                 env = env.bind(var.name, loc)
 
             return env, state
 
         case FunctionDecl(name=function_name):
+            # binds the function directly to its identifier
             env = env.bind(function_name, ast)
 
             return env, state
@@ -1248,9 +1253,14 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
             return env, state
 
         case IfElse(cond=cond, if_true=if_true, if_false=if_false):
+            # copies the environment and saves the location
+            # of the state so far.
             local_env = env.copy()
             old_loc = state.next_loc
 
+            # the environment produced by the sequence of commands
+            # within the if-else is discarded, but its state is maintained
+            # (outside variables might have changed)
             if evaluate_bool(cond, env, state):
                 for command in if_true:
                     local_env, state = evaluate_command(
@@ -1260,8 +1270,14 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
                     local_env, state = evaluate_command(
                         command, local_env, state)
 
+            # the next location to allocate is restored
+            # in the state (i.e., the values of the inner
+            # bound to inner variables are "ignored" and
+            # can be overwritten in the future). the
+            # environment is restored as well (inner variables
+            # are forgotten).
             state.next_loc = old_loc
-            return local_env, state
+            return env, state
 
 
 def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: bool = False) -> tuple[Environment, State]:
@@ -1291,14 +1307,7 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
 
     try:
         for command in ast:
-            # print(env)
-            # print(state.store)
-            # print()
-
             env, state = evaluate_command(command, env, state)
-
-        # print(env)
-        # print(state.store)
 
         return env, state
     except Exception as e:
@@ -1341,11 +1350,11 @@ def main() -> None:
                 code = file.read()
                 evaluate_code(code, env, state, sysexit_on_error=True)
         except FileNotFoundError:
-            print(f"Error: File '{args.filename}' not found.")
+            print(f"Error: File '{args.filename}' not found")
             sys.exit(1)
         except PermissionError:
             print(
-                f"Error: You don't have permission to read '{args.filename}'.")
+                f"Error: You don't have permission to read '{args.filename}'")
             sys.exit(1)
         except IOError as e:
             print(f"Unexpected I/O error: {e}")

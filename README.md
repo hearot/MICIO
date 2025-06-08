@@ -25,9 +25,12 @@ The main MICIO script fully complies with [mypy](https://github.com/python/mypy)
     - [TRANSPOSE, CHANGETIME and REPEAT](#transpose-changetime-and-repeat)
     - [LET](#let)
     - [Applying a Function](#applying-a-function)
+    - [MAP](#map)
+    - [If-Else (for expressions)](#if-else-for-expressions)
   - [Commands](#commands)
     - [Assignments](#assignments)
     - [Function Declarations](#function-declarations)
+    - [If-Else (for commands)](#if-else-for-commands)
     - [EXPORT](#export)
 - [Basic Examples](#basic-examples)
 
@@ -70,7 +73,7 @@ options:
 The foundational building block of MICIO is the only existing type, namely the `Song` type. A `Song` is simply a collection of `Harmony`'s and
 `Pause`'s, played sequentially. A `Harmony` is a collection of `Note`s. The most important binary operation is the concatenation,
 which makes a `Song` follow another one. Two built-in unary
-operations are also provided: `TRANSPOSE` to tranpose by a given number of semitones, and  `CHANGETIME` to speed up or slow down a `Song`. A `LET` environment is provided, which binds a value to a variable within a scope.
+operations are also provided: `TRANSPOSE` to transpose by a given number of semitones, and  `CHANGETIME` to speed up or slow down a `Song`. A `LET` environment is provided, which binds a value to a variable within a scope.
 
 A code consists of a sequence of commands executed sequentially. Each command may be an assignment, which binds a `Song`
 to a variable; a function declaration; or an `EXPORT` statement, used to export a `Song` to WAVE file.
@@ -145,6 +148,8 @@ MICIO ignores whitespaces and employs the following [Lark](https://github.com/la
 
 ## Expressions
 
+Parentheses can be used to group expressions and control the order of evaluation.
+
 ### Defining Notes
 
 A `Note` in MICIO is defined by its **name**, **octave**, and optionally a **modifier**.
@@ -202,7 +207,7 @@ A single note `N`, when placed in the position of a harmony, will be regarded as
 ### Defining Pauses
 
 A `Pause` represents a period of silence in the music.
-It is specified using the `PAUSE` keyword followed by a duration between braces, as seen below:
+It is specified using the `PAUSE` keyword followed by a duration in parentheses, as seen below:
 
 ```text
 PAUSE(TIME)
@@ -226,7 +231,7 @@ EXPR_1 -> ... -> EXPR_2
 
 where `EXPR_i` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
 
-The constant `EMPTY` represents the empty song object (i.e., a song with no harmonies nor pauses).
+The constant `EMPTY` is a reserved constant which represents the empty song object (i.e., a song with no harmonies nor pauses).
 
 #### Examples
 
@@ -250,9 +255,9 @@ The `CHANGETIME` operation changes the duration of all notes and pauses in a son
 CHANGETIME(EXPR, FACTOR)
 ```
 
-where `FACTOR` is a positive integer of a fraction in the form `n/d` and  `EXPR` is an expression.
+where `FACTOR` is a positive integer or a fraction in the form `n/d` and  `EXPR` is an expression.
 
-The `REPEAT` operation simply repeats an expression multiple time. It is specified as follows:
+The `REPEAT` operation simply repeats an expression multiple times. It is specified as follows:
 
 ```text
 REPEAT(EXPR, NUMBER_OF_TIMES)
@@ -277,7 +282,7 @@ LET variable = VALUE IN EXPR
 ```
 
 where `variable` is the name of the variable, `VALUE` is the value that will be mapped to `variable` and
-`EXPR` is the expression that will be evaluated once `variable` has been successfully binded.
+`EXPR` is the expression that will be evaluated once `variable` has been successfully bound.
 
 #### Examples
 
@@ -303,25 +308,59 @@ We use the function declared in [Function Declarations](#function-declarations).
 - `INTRO(B4)`: returns `A4 -> B4`.
 - `F(C4, D5)`: returns `C4 -> D5`.
 
+### MAP
+
+The `MAP` expression allows you to apply a transformation to each step (`Harmony` or `Pause`) of a song, producing a new song where each step is replaced by the result of the given expression. The syntax is:
+
+```text
+MAP iter_variable IN EXPR => RETURN_EXPR
+```
+
+- `iter_variable` is a name that will represent each step of the song within the iteration.
+- `EXPR` is an expression that evaluates to a song; it's the song `MAP` iterates over.
+- `RETURN_EXPR` is an expression that can use `iter_variable` to refer to the current step; it's the expression which gets evaluated at each step of the iteration.
+
+#### Examples
+
+- `MAP y IN x => TRANSPOSE(y, 2)`: produces a new song where each step of `scale` is transposed up by 2 semitones; equivalent to `TRANSPOSE(x, 2)`.
+- `MAP y IN x => y -> y`: produces a new song where each step is repeated twice; cf. `example_9.micio` under *examples*.
+
+## If-Else (for expressions)
+
+You can use `IF ... ELSE ...` as a ternary operator. It is defined as follows:
+
+```text
+IF_TRUE_EXPR IF BOOL ELSE IF_FALSE_EXPR
+```
+
+where `BOOL` is a condition, `IF_TRUE_EXPR` is the expression
+that gets returned if `BOOL` is evaluated as true and `IF_FALSE_EXPR`
+is the expression that gets returned otherwise.
+
+#### Examples
+
+- `A4 IF x == y ELSE B4`: evaluates to `A4` if `x` equals `y`, otherwise to `B4`.
+
+
 ## Commands
 
 Commands in MICIO are separated by a semicolon `;`.
 
 ### Assignments
 
-You can assign an expression with `VAR := EXPR` or `VAR = EXPR`, where `VAR`
+You can assign an expression with `variable := EXPR` or `variable = EXPR`, where `variable`
 is a valid identifier in the grammar and `EXPR` is an expression for a `Song`.
 
-You can define constants using either `CONST VAR := EXPR` or `CONST VAR = EXPR`.
+You can define constants using either `CONST variable := EXPR` or `CONST variable = EXPR`.
 Keep in mind that you can't define a constant with the same name as an existing
 variable, nor can you redefine an existing constant.
 
-The identifier `EMPTY` is already employed to define the empty song object.
+The identifier `EMPTY` is already reserved to define the empty song object.
 
 #### Examples
 
 - `x := A4`: assigns the song `A4` to the variable `x`.
-- `scale := C4 -> D4 -> E4 -> F4 -> G4 -> A4 -> B4 -> C5`: assign the C major scale to `scale`.
+- `scale := C4 -> D4 -> E4 -> F4 -> G4 -> A4 -> B4 -> C5`: assigns the C major scale to `scale`.
 -  `y := F(x)`: assigns the evaluation of `F` with argument `x` to the variable `y`.
 - `CONST x := A4`: defines the constant `x` with value `A4`.
 
@@ -337,14 +376,42 @@ or
 
 where `NAME` is the name of the function, `X1`, ..., `XN` are
 the variables employed in the expression `EXPR`, an expression for a `Song`. All
-the variables must be expressions as well, and must be distinct from one another.
-Functions with zero parameters are NOT allowed, hence must have at least one
+the variables must be distinct identifiers.
+Functions with zero parameters are NOT allowed (you can use constants for that!), hence must have at least one
 parameter. Functions do NOT allow commands.
 
 #### Examples
 
 - `FUNCTION INTRO(X) := A4 -> X`: declares a function `INTRO` with one parameter `X` which prepends `A4` to the song passed as argument `X`.
-- `FUNCTION F(X, Y) := X -> Y`: declares a function `F` with two parameters `X` and `Y` which concatenes `X` into `Y`.
+- `FUNCTION F(X, Y) := X -> Y`: declares a function `F` with two parameters `X` and `Y` which concatenates `X` into `Y`.
+
+### If-Else (for commands)
+
+You can define an `IF-ELSE` statement with the following syntax:
+
+```text
+IF condition THEN
+    command_seq_if_true
+ELSE
+    command_seq_if_false
+ENDIF
+```
+
+where `condition` is a boolean expression, `command_seq_if_true` is
+a sequence of commands which gets executed if `condition` is evaluated
+as true, and `command_seq_if_false` is a sequence of commands which
+gets executed otherwise.
+
+The `ELSE` branch is optional, and if omitted no command will be
+executed if `condition` is evaluated as false.
+
+Everything declared within the `IF` or `ELSE` branch is local in scope and will not be visible from outside. The state changes
+persist.
+
+#### Examples
+
+See `example_7.micio` under *examples* for a showcase of the if-else
+statement.
 
 ### EXPORT
 
@@ -352,8 +419,7 @@ You can export a `Song` expression to a WAVE file with the following syntax:
 
 ```EXPORT EXPR TO "filename.wav"```
 
-where `EXPR` is an expression for a `Song` and `filename.wav` is the name for the WAVE
-file.
+where `EXPR` is an expression for a `Song` and `filename.wav` is the name of the WAVE file.
 
 #### Examples
 
@@ -369,3 +435,4 @@ Under the *examples* folder you will find the following examples:
 - `example_4.micio` generates the refrain of *Ode to Joy* by Ludwig van Beethoven.
 - `example_6.micio` showcases the usage of assignment, functions and comments.
 - `example_7.micio` showcases the usage of *if-else* statements.
+- `example_8.micio` and `example_9.micio`showcase the usage of `MAP`.
