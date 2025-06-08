@@ -222,6 +222,9 @@ class Song:
         """
         return iter(self.steps)
 
+    def repeat(self, times: int) -> Song:
+        return Song(steps=self.steps * times)
+
 
 @dataclass
 class Var:
@@ -727,15 +730,6 @@ def change_time(song: Song, value: float) -> Song:
     return changed
 
 
-def repeat(song: Song, times: int) -> Song:
-    result = Song.empty()
-
-    for _ in range(times):
-        result += song
-
-    return result
-
-
 def transform_parse_boolean_tree(tree: Tree) -> Boolean:
     match tree:
         case Tree(data="equal", children=[left, right]):
@@ -991,18 +985,16 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
             # Creates the temporary environment and state, which will
             # be used to evaluate the expression of the `Let`
             # construct.
-            loc, temporary_state = state.allocate(
-                evaluate_expr(value, env, state))
+            temporary_env = env.bind(
+                var.name, evaluate_expr(value, env, state))
 
-            temporary_env = env.bind(var.name, loc)
-
-            return evaluate_expr(expr, temporary_env, temporary_state)
+            return evaluate_expr(expr, temporary_env, state)
 
         case Map(iter_var=iter_var, expr=expr, return_expr=return_expr):
             song = Song.empty()
 
             for step in evaluate_expr(expr, env, state):
-                temporary_env = env.copy().bind(iter_var.name, Song.empty() + step)
+                temporary_env = env.bind(iter_var.name, Song.empty() + step)
                 song = song + evaluate_expr(return_expr, temporary_env, state)
 
             return song
@@ -1017,7 +1009,7 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
             return change_time(evaluate_expr(music, env, state), value)
 
         case Repeat(song=music, times=times):
-            return repeat(evaluate_expr(music, env, state), times)
+            return evaluate_expr(music, env, state).repeat(times)
 
         case Var(name=name):
             # if `name` is in the environment
@@ -1162,6 +1154,8 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
         state (State): The state the code should start be executed on.
         sysexit_on_error (bool): Whether to exit the program on error.
     """
+    initial_env, initial_state = env, state
+
     try:
         ast = parse_ast(code)
     except Exception as e:
@@ -1170,7 +1164,7 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
         if sysexit_on_error:
             sys.exit(1)
         else:
-            return env, state
+            return initial_env, initial_state
 
     try:
         for command in ast:
@@ -1190,7 +1184,7 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
         if sysexit_on_error:
             sys.exit(1)
         else:
-            return env, state
+            return initial_env, initial_state
 
 
 def main() -> None:
