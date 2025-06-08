@@ -86,7 +86,7 @@ MICIO ignores whitespaces and employs the following grammar:
 
 ```text
     command_seq: command (";" command?)*
-    ?command: assign | fundecl | export
+    ?command: assign | fundecl | export | ifelse
 
     assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
     
@@ -95,6 +95,11 @@ MICIO ignores whitespaces and employs the following grammar:
 
     export: "EXPORT" expr "TO" "\"" FILENAME "\""
     FILENAME: /[a-zA-Z0-9_\/.-]+/
+
+    ifelse: "IF" boolean "{" command_seq "}" ("ELSE" "{" command_seq "}")?
+    ?boolean: equal | not_equal
+    equal: expr "==" expr
+    not_equal: expr "!=" expr  
 
     ?expr: concat | mono | let
     ?mono: step | transpose | paren | var | changetime | funapply

@@ -353,7 +353,7 @@ class Export:
 
 
 @dataclass
-class If:
+class IfElse:
     cond: Boolean
     if_true: CommandSeq
     if_false: CommandSeq
@@ -375,7 +375,7 @@ type Boolean = Equal | NotEqual
 
 type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply
 
-type Command = Assign | FunctionDecl | Export | If
+type Command = Assign | FunctionDecl | Export | IfElse
 type CommandSeq = list[Command]
 
 type Location = int
@@ -544,7 +544,7 @@ class State:
 # accepted by the parser.
 grammar = r"""
     command_seq: command (";" command?)*
-    ?command: assign | fundecl | export | if
+    ?command: assign | fundecl | export | ifelse
 
     assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
     
@@ -554,7 +554,7 @@ grammar = r"""
     export: "EXPORT" expr "TO" "\"" FILENAME "\""
     FILENAME: /[a-zA-Z0-9_\/.-]+/
 
-    if: "IF" boolean "{" command_seq "}" ("ELSE" "{" command_seq "}")?
+    ifelse: "IF" boolean "{" command_seq "}" ("ELSE" "{" command_seq "}")?
     ?boolean: equal | not_equal
     equal: expr "==" expr
     not_equal: expr "!=" expr  
@@ -855,12 +855,12 @@ def transform_parse_command_tree(tree: Tree) -> Command:
         case Tree(data="export", children=[expr, Token(type="FILENAME", value=filename)]):
             return Export(expr=transform_parse_expr_tree(expr), filename=filename)
 
-        case Tree(data="if", children=[boolean, if_true_seq, if_false_seq]):
-            return If(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
+        case Tree(data="ifelse", children=[boolean, if_true_seq, if_false_seq]):
+            return IfElse(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
                       if_false=transform_parse_commandseq_tree(if_false_seq))
 
-        case Tree(data="if", children=[boolean, if_true_seq]):
-            return If(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
+        case Tree(data="ifelse", children=[boolean, if_true_seq]):
+            return IfElse(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
                       if_false=cast(list[Command], []))
 
         case _:
@@ -1049,7 +1049,7 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
 
             return env, state
 
-        case If(cond=cond, if_true=if_true, if_false=if_false):
+        case IfElse(cond=cond, if_true=if_true, if_false=if_false):
             local_env = env.copy()
             old_loc = state.next_loc
 
