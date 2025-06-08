@@ -4,6 +4,6 @@ x := (A4, 1/2) -> (B4, 1/2) -> PAUSE(1/2) -> (C4, 1/2);
 x := MAP y IN x => CHANGETIME(y, 2);
 
 // deletes PAUSE(1); hence x becomes A4 -> B4 -> C4
-x := MAP y IN x => (y IF y != PAUSE(1) ELSE PAUSE(0));
+x := MAP y IN x => (y IF y != PAUSE(1) ELSE EMPTY);
 
 EXPORT x TO "example_8.wav";

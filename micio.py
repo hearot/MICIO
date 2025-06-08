@@ -434,7 +434,7 @@ class Environment:
         Returns:
             Environment: An empty Environment instance.
         """
-        return Environment(env=cast(dict[str, DVal], {}))
+        return Environment(env=cast(dict[str, DVal], {})).bind("EMPTY", Song.empty())
 
     def bind(self, identifier: str, value: DVal) -> Environment:
         """
@@ -1002,11 +1002,8 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
             song = Song.empty()
 
             for step in evaluate_expr(expr, env, state):
-                print(step)
                 temporary_env = env.copy().bind(iter_var.name, Song.empty() + step)
                 song = song + evaluate_expr(return_expr, temporary_env, state)
-                print(evaluate_expr(return_expr, temporary_env, state))
-                print()
 
             return song
 
