@@ -1,0 +1,7 @@
+// e.g., DOUBLE(A4 -> B4) = A4 -> A4 -> B4 -> B4
+FUNCTION DOUBLE(x) = MAP y IN x => y -> y;
+
+x := Do4 -> Re4 -> Mi4 -> Fa4 -> Sol4 -> La4 -> Si4 -> Do5;
+x := CHANGETIME(x, 1/4);
+
+EXPORT DOUBLE(x) TO "example_9.wav";

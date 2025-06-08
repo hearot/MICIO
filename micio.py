@@ -164,7 +164,7 @@ class Harmony:
     notes: Sequence[Note]
 
     def __post_init__(self):
-        self.notes = sorted(self.notes)
+        self.notes = sorted(self.notes)  # order doesn't count in a harmony
 
 
 @dataclass
@@ -211,6 +211,16 @@ class Song:
                     f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause.")
 
     def __eq__(self, other: object) -> bool:
+        """
+        Checks equality between this Song and another object.
+        Equality is implemented ONLY for pair of songs. 
+
+        Args:
+            other (object): The Song to compare with.
+
+        Returns:
+            bool: True if the other object is a Song with the same steps, False otherwise.
+        """
         if not isinstance(other, Song):
             return NotImplemented
 
@@ -226,6 +236,16 @@ class Song:
         return iter(self.steps)
 
     def repeat(self, times: int) -> Song:
+        """
+        Returns a new Song consisting of the
+        original Song repeated multiple times.
+
+        Args:
+            times (int): The number of times to repeat the Song.
+
+        Returns:
+            Song: The repeated Song.
+        """
         return Song(steps=self.steps * times)
 
 
@@ -436,7 +456,14 @@ class FunctionDecl:
 
 @dataclass
 class ConstAssign:
-    var: Var
+    """
+    A dataclass representing the declaration of a constant.
+
+    Attributes:
+        const (str): The identifier for the constant.
+        expr (Expression): The expression being bound to the constant.
+    """
+    const: str
     expr: Expression
 
 
@@ -508,6 +535,14 @@ def export_song(song: Song, output_name: str) -> None:
 
 @dataclass
 class IfElse:
+    """
+    A dataclass representing a conditional command sequence.
+
+    Attributes:
+        cond (Boolean): The condition to evaluate.
+        if_true (CommandSeq): The sequence of commands to execute if the condition is true.
+        if_false (CommandSeq): The sequence of commands to execute if the condition is false.
+    """
     cond: Boolean
     if_true: CommandSeq
     if_false: CommandSeq
@@ -522,12 +557,26 @@ type CommandSeq = list[Command]
 
 @dataclass
 class Equal:
+    """
+    A dataclass representing a boolean equality comparison between two expressions.
+
+    Attributes:
+        left (Expression): The left-hand side expression.
+        right (Expression): The right-hand side expression.
+    """
     left: Expression
     right: Expression
 
 
 @dataclass
 class NotEqual:
+    """
+    A dataclass representing a boolean inequality comparison between two expressions.
+
+    Attributes:
+        left (Expression): The left-hand side expression.
+        right (Expression): The right-hand side expression.
+    """
     left: Expression
     right: Expression
 
@@ -939,7 +988,7 @@ def transform_parse_command_tree(tree: Tree) -> Command:
     """
     match tree:
         case Tree(data="const_assign", children=[Token(type="IDENTIFIER", value=name), expr]):
-            return ConstAssign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
+            return ConstAssign(const=name, expr=transform_parse_expr_tree(expr))
 
         case Tree(data="assign", children=[Token(type="IDENTIFIER", value=name), expr]):
             return Assign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
@@ -1011,6 +1060,18 @@ def parse_ast(program: str) -> CommandSeq:
 
 
 def evaluate_bool(boolean: Boolean, env: Environment, state: State) -> bool:
+    """
+    Evaluates an abstract syntax tree (AST) in the form of `Boolean` to
+    produce an actual `bool`, using the given environment and state.
+
+    Args:
+        boolean (Boolean): The abstract syntax tree of the `Boolean` to evaluate.
+        env (Environment): The current environment, which maps variable names to denotable values.
+        state (State): The current state, which maps locations to `Song` object (the only memorizable type).
+
+    Returns:
+        bool: The resulting boolean value after evaluation.
+    """
     match boolean:
         case Equal(left=left, right=right):
             return evaluate_expr(left, env, state) == evaluate_expr(right, env, state)
@@ -1031,7 +1092,7 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
     Args:
         ast (Expression): The abstract syntax tree of the `Expression` to evaluate.
         env (Environment): The current environment, which maps variable names to denotable values.
-        state (State): The current state, which maps location to `Song` object (the only memorizable type).
+        state (State): The current state, which maps locations to `Song` object (the only memorizable type).
 
     Returns:
         Song: The resulting song after evaluation.
@@ -1136,19 +1197,19 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
     Args:
         ast (Expression): The abstract syntax tree of the `Command` to evaluate.
         env (Environment): The current environment, which maps variable names to denotable values.
-        state (State): The current state, which maps location to `Song` object (the only memorizable type).
+        state (State): The current state, which maps locations to `Song` object (the only memorizable type).
 
     Returns:
         Environment: The new environment, obtained after executing the command.
         State: The new state, obtained after executing the command.
     """
     match ast:
-        case ConstAssign(var=var, expr=expr):
-            if env.contains_identifier(var.name):
+        case ConstAssign(const=const, expr=expr):
+            if env.contains_identifier(const):
                 raise TypeError(
                     "Cannot make an existing identifier into a constant.")
             else:
-                env = env.bind(var.name, evaluate_expr(expr, env, state))
+                env = env.bind(const, evaluate_expr(expr, env, state))
 
             return env, state
 
