@@ -293,6 +293,12 @@ class ChangeTime:
 
 
 @dataclass
+class Repeat:
+    song: Expression
+    times: int
+
+
+@dataclass
 class FunctionDecl:
     """
     A dataclass representing the declaration of a function which returns the result of
@@ -560,7 +566,7 @@ grammar = r"""
     not_equal: expr "!=" expr  
 
     ?expr: concat | mono | let
-    ?mono: step | transpose | paren | var | changetime | funapply
+    ?mono: step | transpose | paren | var | changetime | funapply | repeat
     ?paren: "(" expr ")"
     var: IDENTIFIER
 
@@ -571,6 +577,7 @@ grammar = r"""
 
     transpose: "TRANSPOSE(" expr "," TRANSPOSE_VALUE ")"
     changetime: "CHANGETIME(" expr "," time ")"
+    repeat: "REPEAT(" expr "," NUMBER ")"
 
     step: harmony | pause
     
@@ -697,6 +704,15 @@ def change_time(song: Song, value: float) -> Song:
     return changed
 
 
+def repeat(song: Song, times: int) -> Song:
+    result = Song.empty()
+
+    for _ in range(times):
+        result += song
+
+    return result
+
+
 def transform_parse_boolean_tree(tree: Tree) -> Boolean:
     match tree:
         case Tree(data="equal", children=[left, right]):
@@ -815,6 +831,9 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
         case Tree(data="changetime", children=[subtree, time]):
             return ChangeTime(song=transform_parse_expr_tree(subtree), value=transform_parse_time_tree(time))
 
+        case Tree(data="repeat", children=[subtree, Token(type="NUMBER", value=value)]):
+            return Repeat(song=transform_parse_expr_tree(subtree), times=int(value))
+
         case Tree(data="funapply", children=[Token(type="IDENTIFIER", value=name), Tree(data="arg_list", children=args)]):
             return FunctionApply(name=name, args=[transform_parse_expr_tree(arg) for arg in args])
 
@@ -857,11 +876,11 @@ def transform_parse_command_tree(tree: Tree) -> Command:
 
         case Tree(data="ifelse", children=[boolean, if_true_seq, if_false_seq]):
             return IfElse(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
-                      if_false=transform_parse_commandseq_tree(if_false_seq))
+                          if_false=transform_parse_commandseq_tree(if_false_seq))
 
         case Tree(data="ifelse", children=[boolean, if_true_seq]):
             return IfElse(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
-                      if_false=cast(list[Command], []))
+                          if_false=cast(list[Command], []))
 
         case _:
             raise TypeError(
@@ -953,6 +972,9 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
 
         case ChangeTime(song=music, value=value):
             return change_time(evaluate_expr(music, env, state), value)
+
+        case Repeat(song=music, times=times):
+            return repeat(evaluate_expr(music, env, state), times)
 
         case Var(name=name):
             # if `name` is in the environment
