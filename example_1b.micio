@@ -1,1 +1,3 @@
-EXPORT(Do4 -> Re4 -> Mi4 -> Fa4 -> Sol4 -> La4 -> Si4 -> Do5, "example_1.wav");
+EXPORT
+    Do4 -> Re4 -> Mi4 -> Fa4 -> Sol4 -> La4 -> Si4 -> Do5
+TO "example_1.wav";

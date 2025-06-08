@@ -1,4 +1,4 @@
-EXPORT(
+EXPORT
     LET y = (
         LET x = (D4,1/4) -> (E4,1/4) -> (G4,1/4) -> (E4,1/4) IN
             x -> (B4,3/4) -> (B4,3/4) -> (A4,3/2) ->
@@ -11,7 +11,5 @@ EXPORT(
             (F#4,1/4) -> (E4,1/2) -> x -> (G4,1) ->
             (A4,1/2) -> (F#4,3/4) -> (E4,1/4) -> (D4,1)
             -> (D4,1/2) -> (A4,1) -> (G4,2)
-    ) IN CHANGETIME(y, 2/3),
-
-    "example_2.wav"
-);
+    ) IN CHANGETIME(y, 2/3)
+TO "example_2.wav";

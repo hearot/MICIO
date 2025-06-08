@@ -93,8 +93,8 @@ MICIO ignores whitespaces and employs the following grammar:
     fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr | "FUNCTION" IDENTIFIER "(" params ")" ":=" expr
     params: IDENTIFIER ("," IDENTIFIER)*
 
-    export: "EXPORT(" expr "," "\"" FILENAME "\"" ")"
-    FILENAME: /[a-zA-Z0-9_\/.-]+\.[a-zA-Z0-9]+/
+    export: "EXPORT" expr "TO" "\"" FILENAME "\""
+    FILENAME: /[a-zA-Z0-9_\/.-]+/
 
     ?expr: concat | mono | let
     ?mono: step | transpose | paren | var | changetime | funapply
@@ -328,14 +328,14 @@ parameter. Functions do NOT allow commands.
 
 You can export a `Song` expression to a WAVE file with the following syntax:
 
-```EXPORT(EXPR, "filename.wav")```
+```EXPORT EXPR TO "filename.wav"```
 
 where `EXPR` is an expression for a `Song` and `filename.wav` is the name for the WAVE
 file.
 
 #### Examples
 
-- `EXPORT(A4 -> B4, "music.wav")`: exports the song `A4 -> B4` to `music.wav`.
+- `EXPORT A4 -> B4 TO "music.wav"`: exports the song `A4 -> B4` to `music.wav`.
 
 # Basic examples
 

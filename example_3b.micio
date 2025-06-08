@@ -7,4 +7,6 @@ y := TRANSPOSE(
     (C4, 1/4) -> PAUSE(3/2) -> (G3, 1/2),
 12);
 
-EXPORT(y -> CHANGETIME(y, 1/2) -> CHANGETIME(y, 3/2), "example_3.wav");
+EXPORT
+    y -> CHANGETIME(y, 1/2) -> CHANGETIME(y, 3/2)
+TO "example_3.wav";

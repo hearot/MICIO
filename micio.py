@@ -521,8 +521,8 @@ grammar = r"""
     fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr | "FUNCTION" IDENTIFIER "(" params ")" ":=" expr
     params: IDENTIFIER ("," IDENTIFIER)*
 
-    export: "EXPORT(" expr "," "\"" FILENAME "\"" ")"
-    FILENAME: /[a-zA-Z0-9_\/.-]+\.[a-zA-Z0-9]+/
+    export: "EXPORT" expr "TO" "\"" FILENAME "\""
+    FILENAME: /[a-zA-Z0-9_\/.-]+/
 
     ?expr: concat | mono | let
     ?mono: step | transpose | paren | var | changetime | funapply
