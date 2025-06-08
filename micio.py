@@ -372,6 +372,13 @@ class IfElseExpr:
 
 
 @dataclass
+class Map:
+    iter_var: Var
+    expr: Expression
+    return_expr: Expression
+
+
+@dataclass
 class IfElse:
     cond: Boolean
     if_true: CommandSeq
@@ -392,7 +399,7 @@ class NotEqual:
 
 type Boolean = Equal | NotEqual
 
-type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply | Repeat | IfElseExpr
+type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply | Repeat | IfElseExpr | Map
 
 type Command = ConstAssign | Assign | FunctionDecl | Export | IfElse
 type CommandSeq = list[Command]
@@ -577,15 +584,16 @@ grammar = r"""
     ifelse: "IF" boolean "THEN" command_seq ("ELSE" command_seq)? "ENDIF"
     ?boolean: equal | not_equal
     equal: expr "==" expr
-    not_equal: expr "!=" expr  
+    not_equal: expr "!=" expr
 
-    ?expr: concat | mono | let | ifelse_expr
+    ?expr: concat | mono | let | ifelse_expr | map
     ?mono: step | transpose | paren | var | changetime | funapply | repeat
     ?paren: "(" expr ")"
     var: IDENTIFIER
 
     let: "LET" IDENTIFIER "=" expr "IN" expr
     ifelse_expr: expr "IF" boolean "ELSE" expr
+    map: "MAP" IDENTIFIER "IN" expr "=>" expr
 
     funapply: IDENTIFIER "(" arg_list ")"
     arg_list: expr ("," expr)*
@@ -834,6 +842,10 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
         case Tree(data="let", children=[Token(type="IDENTIFIER", value=var), value, expr]):
             return Let(var=Var(name=var), value=transform_parse_expr_tree(value), expr=transform_parse_expr_tree(expr))
 
+        case Tree(data="map", children=[Token(type="IDENTIFIER", value=var), expr, return_expr]):
+            return Map(iter_var=Var(name=var), expr=transform_parse_expr_tree(expr),
+                       return_expr=transform_parse_expr_tree(return_expr))
+
         case Tree(data="ifelse_expr", children=[if_true, boolean, if_false]):
             return IfElseExpr(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_expr_tree(if_true),
                               if_false=transform_parse_expr_tree(if_false))
@@ -986,6 +998,18 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
 
             return evaluate_expr(expr, temporary_env, temporary_state)
 
+        case Map(iter_var=iter_var, expr=expr, return_expr=return_expr):
+            song = Song.empty()
+
+            for step in evaluate_expr(expr, env, state):
+                print(step)
+                temporary_env = env.copy().bind(iter_var.name, Song.empty() + step)
+                song = song + evaluate_expr(return_expr, temporary_env, state)
+                print(evaluate_expr(return_expr, temporary_env, state))
+                print()
+
+            return song
+
         case Concat(left=left, right=right):
             return evaluate_expr(left, env, state) + evaluate_expr(right, env, state)
 
@@ -1074,7 +1098,7 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
         case ConstAssign(var=var, expr=expr):
             if env.contains_identifier(var.name):
                 raise TypeError(
-                    "Cannot assign a new value to an existing constant.")
+                    "Cannot make an existing identifier into a constant.")
             else:
                 env = env.bind(var.name, evaluate_expr(expr, env, state))
 
