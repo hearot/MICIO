@@ -33,6 +33,8 @@ NOTE_FREQUENCIES = NOTE_FREQUENCIES | {
     "Ti": NOTE_FREQUENCIES["B"], "H": NOTE_FREQUENCIES["B"]
 }
 
+# EXPRESSIONS
+
 
 @dataclass(order=True)
 class Note:
@@ -281,6 +283,34 @@ class Transpose:
     value: int
 
 
+def transpose(song: Song, value: int) -> Song:
+    """
+    Transposes the song by shifting all notes by the specified number of semitones.
+
+    This function iterates over the song and applies `Note.transposed` to each note, shifting its frequency 
+    according to the given value.
+
+    Args:
+        song (Song): The song to be transposed.
+        value (int): The number of semitones to transpose. Positive values transpose upwards, negative values downwards.
+
+    Returns:
+        Song: A new song with the transposed notes, maintaining the original structure and timing of harmonies and pauses.
+    """
+    transposed = Song.empty()
+
+    for step in song:
+        if isinstance(step, Harmony):
+            transposed = transposed + \
+                Harmony(notes=[note.transposed(value) for note in step.notes])
+        elif isinstance(step, Pause):
+            transposed = transposed + step
+        else:
+            raise TypeError(f"{step} is not a Harmony nor a Pause.")
+
+    return transposed
+
+
 @dataclass
 class ChangeTime:
     """
@@ -295,10 +325,69 @@ class ChangeTime:
     value: float
 
 
+def change_time(song: Song, value: float) -> Song:
+    """
+    Changes the duration of all notes and pauses
+    in the song by multiplying their duration by the specified factor.
+
+    Args:
+        song (Song): The song to be sped up or slowed down.
+        value (float): The factor by which to change the duration (e.g., 2.0 for 2x, 0.5 for 0.5x).
+
+    Returns:
+        Song: The song adjusted in speed.
+    """
+    changed = Song.empty()
+
+    for step in song:
+        if isinstance(step, Harmony):
+            changed = changed + \
+                Harmony(notes=[note.change_time(value) for note in step.notes])
+        elif isinstance(step, Pause):
+            changed = changed + step.change_time(value)
+        else:
+            raise TypeError(f"{step} is not a Harmony nor a Pause.")
+    return changed
+
+
 @dataclass
 class Repeat:
     song: Expression
     times: int
+
+
+@dataclass
+class FunctionApply:
+    """
+    A dataclass representing the application of a function to multiple arguments.
+
+    Attributes:
+        name (str): The name of the function to call.
+        args (Sequence[Expression]): The sequence of expressions passed as arguments to the function.
+                                     For example, in F(X, Y) = ..., the arguments are the evaluations of
+                                     X and Y.
+    """
+    name: str
+    args: Sequence[Expression]
+
+
+@dataclass
+class IfElseExpr:
+    cond: Boolean
+    if_true: Expression
+    if_false: Expression
+
+
+@dataclass
+class Map:
+    iter_var: Var
+    expr: Expression
+    return_expr: Expression
+
+
+type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply | Repeat | IfElseExpr | Map
+
+# COMMANDS
 
 
 @dataclass
@@ -317,21 +406,6 @@ class FunctionDecl:
     name: str
     params: Sequence[str]
     body: Expression
-
-
-@dataclass
-class FunctionApply:
-    """
-    A dataclass representing the application of a function to multiple arguments.
-
-    Attributes:
-        name (str): The name of the function to call.
-        args (Sequence[Expression]): The sequence of expressions passed as arguments to the function.
-                                     For example, in F(X, Y) = ..., the arguments are the evaluations of
-                                     X and Y.
-    """
-    name: str
-    args: Sequence[Expression]
 
 
 @dataclass
@@ -367,18 +441,43 @@ class Export:
     filename: str
 
 
-@dataclass
-class IfElseExpr:
-    cond: Boolean
-    if_true: Expression
-    if_false: Expression
+def export_song(song: Song, output_name: str) -> None:
+    """
+    Exports the given song as a `.wav` file. The function combines multiple
+    notes coming from the same harmony, handles pauses, and finally generates the audio
+    corresponding to the concatenation of said handles and pauses.
+    It uses `AudioSegment` and `Sine` from `pydub` to create, mix and overlay the audio.
 
+    Args:
+        song (Song): The song to be exported, represented as a sequence of harmonies and pauses.
+        output_name (str): The name of the output file. 
+    """
+    combined = AudioSegment.silent(duration=0)  # default segment
 
-@dataclass
-class Map:
-    iter_var: Var
-    expr: Expression
-    return_expr: Expression
+    for item in song:
+        if isinstance(item, Pause):
+            combined += AudioSegment.silent(
+                duration=item.time)  # adds a pause to the song, according to the evaluated expression
+        elif isinstance(item, Harmony):
+            # get the duration of the current harmony
+            duration = max(note.time for note in item.notes)
+            # set the base segment which all the notes are going to be overlaid on
+            harmony_audio = AudioSegment.silent(duration=duration)
+
+            for note in item.notes:
+                note_audio = Sawtooth(note.frequency).to_audio_segment(
+                    # generate the wave of the note, with a fade in and fade out of 15ms
+                    duration=note.time).fade_in(15).fade_out(15)
+                harmony_audio = harmony_audio.overlay(note_audio)
+
+            combined += harmony_audio  # adds the segment to the final song
+        else:
+            raise TypeError(f"{item} is neither a Pause nor a Harmony.")
+
+    # add a final silent segment for 100ms
+    combined += AudioSegment.silent(duration=100)
+
+    combined.export(output_name, format="wav")
 
 
 @dataclass
@@ -386,6 +485,13 @@ class IfElse:
     cond: Boolean
     if_true: CommandSeq
     if_false: CommandSeq
+
+
+type Command = ConstAssign | Assign | FunctionDecl | Export | IfElse
+type CommandSeq = list[Command]
+
+
+# BOOLEANS
 
 
 @dataclass
@@ -402,17 +508,14 @@ class NotEqual:
 
 type Boolean = Equal | NotEqual
 
-type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply | Repeat | IfElseExpr | Map
-
-type Command = ConstAssign | Assign | FunctionDecl | Export | IfElse
-type CommandSeq = list[Command]
+# ENVIRONMENTS & STATES
 
 type Location = int
 
-# memorizable values
+# values that are memorizable in the state
 type MVal = Song
 
-# denotable values
+# denotable values for the environment
 type DVal = Song | Location | FunctionDecl
 
 
@@ -554,6 +657,10 @@ class State:
         Returns:
             State: A new State instance with the updated store.
         """
+        if not (0 <= addr < len(self.store)):
+            raise IndexError(
+                f"Location {addr} out of bounds for state update.")
+
         return State(store=self.store[:addr] + [value] + self.store[addr+1:], next_loc=self.next_loc)
 
     def access(self, addr: Location) -> MVal:
@@ -567,6 +674,9 @@ class State:
             MVal: The value stored at the location.
         """
         return self.store[addr]
+
+
+# PARSING & TRANSFORMATION OF PARSE TREES
 
 
 # The grammar defining the structure of the musical expressions
@@ -638,99 +748,17 @@ grammar = r"""
 parser = Lark(grammar, start="command_seq")
 
 
-def export_song(song: Song, output_name: str) -> None:
-    """
-    Exports the given song as a `.wav` file. The function combines multiple
-    notes coming from the same harmony, handles pauses, and finally generates the audio
-    corresponding to the concatenation of said handles and pauses.
-    It uses `AudioSegment` and `Sine` from `pydub` to create, mix and overlay the audio.
-
-    Args:
-        song (Song): The song to be exported, represented as a sequence of harmonies and pauses.
-        output_name (str): The name of the output file. 
-    """
-    combined = AudioSegment.silent(duration=0)  # default segment
-
-    for item in song:
-        if isinstance(item, Pause):
-            combined += AudioSegment.silent(
-                duration=item.time)  # adds a pause to the song, according to the evaluated expression
-        elif isinstance(item, Harmony):
-            # get the duration of the current harmony
-            duration = max(note.time for note in item.notes)
-            # set the base segment which all the notes are going to be overlaid on
-            harmony_audio = AudioSegment.silent(duration=duration)
-
-            for note in item.notes:
-                note_audio = Sawtooth(note.frequency).to_audio_segment(
-                    # generate the wave of the note, with a fade in and fade out of 15ms
-                    duration=note.time).fade_in(15).fade_out(15)
-                harmony_audio = harmony_audio.overlay(note_audio)
-
-            combined += harmony_audio  # adds the segment to the final song
-        else:
-            raise TypeError(f"{item} is neither a Pause nor a Harmony.")
-
-    # add a final silent segment for 100ms
-    combined += AudioSegment.silent(duration=100)
-
-    combined.export(output_name, format="wav")
-
-
-def transpose(song: Song, value: int) -> Song:
-    """
-    Transposes the song by shifting all notes by the specified number of semitones.
-
-    This function iterates over the song and applies `Note.transposed` to each note, shifting its frequency 
-    according to the given value.
-
-    Args:
-        song (Song): The song to be transposed.
-        value (int): The number of semitones to transpose. Positive values transpose upwards, negative values downwards.
-
-    Returns:
-        Song: A new song with the transposed notes, maintaining the original structure and timing of harmonies and pauses.
-    """
-    transposed = Song.empty()
-
-    for step in song:
-        if isinstance(step, Harmony):
-            transposed = transposed + \
-                Harmony(notes=[note.transposed(value) for note in step.notes])
-        elif isinstance(step, Pause):
-            transposed = transposed + step
-        else:
-            raise TypeError(f"{step} is not a Harmony nor a Pause.")
-
-    return transposed
-
-
-def change_time(song: Song, value: float) -> Song:
-    """
-    Changes the duration of all notes and pauses
-    in the song by multiplying their duration by the specified factor.
-
-    Args:
-        song (Song): The song to be sped up or slowed down.
-        value (float): The factor by which to change the duration (e.g., 2.0 for 2x, 0.5 for 0.5x).
-
-    Returns:
-        Song: The song adjusted in speed.
-    """
-    changed = Song.empty()
-
-    for step in song:
-        if isinstance(step, Harmony):
-            changed = changed + \
-                Harmony(notes=[note.change_time(value) for note in step.notes])
-        elif isinstance(step, Pause):
-            changed = changed + step.change_time(value)
-        else:
-            raise TypeError(f"{step} is not a Harmony nor a Pause.")
-    return changed
-
-
 def transform_parse_boolean_tree(tree: Tree) -> Boolean:
+    """
+    Transforms the parse tree produced by the parser in a boolean context
+    into an actual Boolean dataclass.
+
+    Args:
+        tree (Tree): The parse tree generated by the Lark parser; MUST come from a boolean (`boolean`) tree.
+
+    Returns:
+        Boolean: The Boolean translation of the tree.
+    """
     match tree:
         case Tree(data="equal", children=[left, right]):
             return Equal(left=transform_parse_expr_tree(left), right=transform_parse_expr_tree(right))
@@ -951,6 +979,9 @@ def parse_ast(program: str) -> CommandSeq:
     return transform_parse_commandseq_tree(parse_tree)
 
 
+# EVALUATION & EXECUTION
+
+
 def evaluate_bool(boolean: Boolean, env: Environment, state: State) -> bool:
     match boolean:
         case Equal(left=left, right=right):
@@ -1146,7 +1177,10 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
 
 def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: bool = False) -> tuple[Environment, State]:
     """
-    Evaluates the provided code.
+    Executes the provided code and returns the new environment and the new state.
+    If an error is encountered and sysexit_on_error is False,
+    the environment and the state passed as arguments are returned (i.e., they
+    are rolled back).
 
     Args:
         code (str): The code to be executed.
@@ -1185,6 +1219,9 @@ def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: b
             sys.exit(1)
         else:
             return initial_env, initial_state
+
+
+# MAIN ENTRY POINT
 
 
 def main() -> None:
