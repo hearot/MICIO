@@ -339,10 +339,11 @@ file.
 
 # Basic examples
 
-In the main folder of the repository you will be able to find four examples.
+Under the *examples* folder you will find the following examples:
 
 - `example_1a.micio` and `example_1b.micio` both generate the C major scale. The former uses letter notation, whereas the latter employs fixed-Do solfège.
 - `example_2.micio` generates the refrain of *Never gonna give you up* by Rick Astley.
 - `example_3a.micio` and `example_3b.micio` both generate the refrain of the theme of Dario Moccia's *Momento gaming* with three different durations. The former follows functional programming principles, whereas the latter adopts an imperative paradigm.
 - `example_4.micio` generates the refrain of *Ode to Joy* by Ludwig van Beethoven.
 - `example_6.micio` showcases the usage of assignment, functions and comments.
+- `example_7.micio` showcases the usage of *if-else* statements.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast, Iterator, Literal, Sequence
 
 import argparse
@@ -34,7 +34,7 @@ NOTE_FREQUENCIES = NOTE_FREQUENCIES | {
 }
 
 
-@dataclass
+@dataclass(order=True)
 class Note:
     """
     A dataclass representing a musical note with a set frequency and duration (time) in milliseconds.
@@ -43,8 +43,8 @@ class Note:
         frequency (float): The frequency of the note in Hz.
         time (int): The duration of the note in milliseconds (default is 1000 ms).
     """
-    frequency: float
-    time: int = 1000  # ms
+    frequency: float = field(compare=True)
+    time: int = field(default=1000, compare=True)  # ms
 
     @staticmethod
     def generate(name: NoteName, octave: int, modifier: NoteModifier | None = None) -> Note:
@@ -161,6 +161,9 @@ class Harmony:
 
     notes: Sequence[Note]
 
+    def __post_init__(self):
+        self.notes = sorted(self.notes)
+
 
 @dataclass
 class Song:
@@ -203,6 +206,12 @@ class Song:
             case _:
                 raise TypeError(
                     f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause.")
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Song):
+            return NotImplemented
+
+        return self.steps == other.steps
 
     def __iter__(self) -> Iterator[Harmony | Pause]:
         """
@@ -343,9 +352,30 @@ class Export:
     filename: str
 
 
+@dataclass
+class If:
+    cond: Boolean
+    if_true: CommandSeq
+    if_false: CommandSeq
+
+
+@dataclass
+class Equal:
+    left: Expression
+    right: Expression
+
+
+@dataclass
+class NotEqual:
+    left: Expression
+    right: Expression
+
+
+type Boolean = Equal | NotEqual
+
 type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply
 
-type Command = Assign | FunctionDecl | Export
+type Command = Assign | FunctionDecl | Export | If
 type CommandSeq = list[Command]
 
 type Location = int
@@ -514,7 +544,7 @@ class State:
 # accepted by the parser.
 grammar = r"""
     command_seq: command (";" command?)*
-    ?command: assign | fundecl | export
+    ?command: assign | fundecl | export | if
 
     assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
     
@@ -523,6 +553,11 @@ grammar = r"""
 
     export: "EXPORT" expr "TO" "\"" FILENAME "\""
     FILENAME: /[a-zA-Z0-9_\/.-]+/
+
+    if: "IF" boolean "{" command_seq "}" ("ELSE" "{" command_seq "}")?
+    ?boolean: equal | not_equal
+    equal: expr "==" expr
+    not_equal: expr "!=" expr  
 
     ?expr: concat | mono | let
     ?mono: step | transpose | paren | var | changetime | funapply
@@ -660,6 +695,19 @@ def change_time(song: Song, value: float) -> Song:
         else:
             raise TypeError(f"{step} is not a Harmony nor a Pause.")
     return changed
+
+
+def transform_parse_boolean_tree(tree: Tree) -> Boolean:
+    match tree:
+        case Tree(data="equal", children=[left, right]):
+            return Equal(left=transform_parse_expr_tree(left), right=transform_parse_expr_tree(right))
+
+        case Tree(data="not_equal", children=[left, right]):
+            return NotEqual(left=transform_parse_expr_tree(left), right=transform_parse_expr_tree(right))
+
+        case _:
+            raise TypeError(
+                f"Cannot parse an expression of unknown type {type(tree)}.")
 
 
 def transform_parse_time_tree(tree: Tree) -> float:
@@ -807,6 +855,14 @@ def transform_parse_command_tree(tree: Tree) -> Command:
         case Tree(data="export", children=[expr, Token(type="FILENAME", value=filename)]):
             return Export(expr=transform_parse_expr_tree(expr), filename=filename)
 
+        case Tree(data="if", children=[boolean, if_true_seq, if_false_seq]):
+            return If(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
+                      if_false=transform_parse_commandseq_tree(if_false_seq))
+
+        case Tree(data="if", children=[boolean, if_true_seq]):
+            return If(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_commandseq_tree(if_true_seq),
+                      if_false=cast(list[Command], []))
+
         case _:
             raise TypeError(
                 f"Cannot parse a command of unknown type {type(tree)}.")
@@ -846,6 +902,19 @@ def parse_ast(program: str) -> CommandSeq:
     """
     parse_tree = parser.parse(program)
     return transform_parse_commandseq_tree(parse_tree)
+
+
+def evaluate_bool(boolean: Boolean, env: Environment, state: State) -> bool:
+    match boolean:
+        case Equal(left=left, right=right):
+            return evaluate_expr(left, env, state) == evaluate_expr(right, env, state)
+
+        case NotEqual(left=left, right=right):
+            return evaluate_expr(left, env, state) != evaluate_expr(right, env, state)
+
+        case _:
+            raise TypeError(
+                f"Cannot deduce a boolean from an expression of unknown type {type(boolean)}.")
 
 
 def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
@@ -979,6 +1048,22 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
                 raise Exception(f"Export & conversion error: {e}")
 
             return env, state
+
+        case If(cond=cond, if_true=if_true, if_false=if_false):
+            local_env = env.copy()
+            old_loc = state.next_loc
+
+            if evaluate_bool(cond, env, state):
+                for command in if_true:
+                    local_env, state = evaluate_command(
+                        command, local_env, state)
+            else:
+                for command in if_false:
+                    local_env, state = evaluate_command(
+                        command, local_env, state)
+
+            state.next_loc = old_loc
+            return local_env, state
 
 
 def evaluate_code(code: str, env: Environment, state: State, sysexit_on_error: bool = False) -> tuple[Environment, State]:

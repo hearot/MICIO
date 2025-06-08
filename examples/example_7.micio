@@ -1,0 +1,11 @@
+x := [A1, B2, C3] -> [D4, E5];
+
+IF x == [C3, B2, A1] -> [E5, D4] { // true, note that the order in the harmonies is different!
+    x := A4 -> [A4, B4] -> [C4, B4, A4];
+};
+
+IF x != A4 -> [A4, B4] -> [A4, B4, C4] { // false
+    EXPORT CHANGETIME(x, 2) TO "wont_be_exported.wav";
+} ELSE {
+    EXPORT CHANGETIME(x, 1/2) TO "example_7.wav";
+};
