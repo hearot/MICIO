@@ -332,6 +332,12 @@ class FunctionApply:
 
 
 @dataclass
+class ConstAssign:
+    var: Var
+    expr: Expression
+
+
+@dataclass
 class Assign:
     """
     A dataclass representing the assignment of an expression to a variable.
@@ -379,9 +385,9 @@ class NotEqual:
 
 type Boolean = Equal | NotEqual
 
-type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply
+type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply | Repeat
 
-type Command = Assign | FunctionDecl | Export | IfElse
+type Command = ConstAssign | Assign | FunctionDecl | Export | IfElse
 type CommandSeq = list[Command]
 
 type Location = int
@@ -390,7 +396,7 @@ type Location = int
 type MVal = Song
 
 # denotable values
-type DVal = Location | FunctionDecl  # TODO: constants?
+type DVal = Song | Location | FunctionDecl
 
 
 @dataclass
@@ -550,8 +556,9 @@ class State:
 # accepted by the parser.
 grammar = r"""
     command_seq: command (";" command?)*
-    ?command: assign | fundecl | export | ifelse
+    ?command: const_assign | assign | fundecl | export | ifelse
 
+    const_assign: "CONST" IDENTIFIER "=" expr | "CONST" IDENTIFIER ":=" expr
     assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
     
     fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr | "FUNCTION" IDENTIFIER "(" params ")" ":=" expr
@@ -560,7 +567,7 @@ grammar = r"""
     export: "EXPORT" expr "TO" "\"" FILENAME "\""
     FILENAME: /[a-zA-Z0-9_\/.-]+/
 
-    ifelse: "IF" boolean "{" command_seq "}" ("ELSE" "{" command_seq "}")?
+    ifelse: "IF" boolean "THEN" command_seq ("ELSE" command_seq)? "ENDIF"
     ?boolean: equal | not_equal
     equal: expr "==" expr
     not_equal: expr "!=" expr  
@@ -857,6 +864,9 @@ def transform_parse_command_tree(tree: Tree) -> Command:
         Command: The structured instance of the dataclass corresponding to the command.
     """
     match tree:
+        case Tree(data="const_assign", children=[Token(type="IDENTIFIER", value=name), expr]):
+            return ConstAssign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
+
         case Tree(data="assign", children=[Token(type="IDENTIFIER", value=name), expr]):
             return Assign(var=Var(name=name), expr=transform_parse_expr_tree(expr))
 
@@ -984,11 +994,14 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
                 # if `name` points to a Location (i.e., an integer)
                 if isinstance(dvalue, int):
                     return state.access(dvalue)
+                elif isinstance(dvalue, Song):
+                    return dvalue
                 elif isinstance(dvalue, FunctionDecl):
+                    # TODO: . in errors?
                     raise TypeError(f"{name} is a function, not a song.")
                 else:
                     raise TypeError(
-                        f"Couldn't convert {name} to a proper location")
+                        f"Couldn't convert {name} to a proper location or type.")
 
             raise NameError(f"Variable '{name}' is not defined")
 
@@ -1040,12 +1053,24 @@ def evaluate_command(ast: Command, env: Environment, state: State) -> tuple[Envi
         State: The new state, obtained after executing the command.
     """
     match ast:
+        case ConstAssign(var=var, expr=expr):
+            if env.contains_identifier(var.name):
+                raise TypeError(
+                    "Cannot assign a new value to an existing constant.")
+            else:
+                env = env.bind(var.name, evaluate_expr(expr, env, state))
+
+            return env, state
+
         case Assign(var=var, expr=expr):
             if env.contains_identifier(var.name):
                 loc = env.get_value(var.name)
 
                 if isinstance(loc, int):
                     state = state.update(loc, evaluate_expr(expr, env, state))
+                elif isinstance(loc, Song):
+                    raise TypeError(
+                        "Cannot assign a new value to an existing constant.")
                 else:
                     raise TypeError(
                         "Cannot assign a new value to a variable that does not reference a valid location.")
