@@ -1,4 +1,5 @@
-x := [A1, B2, C3] -> [D4, E5];
+// since A4 is equal to A4, x will be assigned [A1, B2, C3] -> [D4, E5] 
+x := [A1, B2, C3] -> [D4, E5] IF A4 == A4 ELSE A5;
 
 // true, note that the order in the harmonies is different
 IF x == [C3, B2, A1] -> [E5, D4] THEN

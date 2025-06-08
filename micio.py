@@ -365,6 +365,13 @@ class Export:
 
 
 @dataclass
+class IfElseExpr:
+    cond: Boolean
+    if_true: Expression
+    if_false: Expression
+
+
+@dataclass
 class IfElse:
     cond: Boolean
     if_true: CommandSeq
@@ -385,7 +392,7 @@ class NotEqual:
 
 type Boolean = Equal | NotEqual
 
-type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply | Repeat
+type Expression = Song | Let | Concat | Transpose | Var | ChangeTime | FunctionApply | Repeat | IfElseExpr
 
 type Command = ConstAssign | Assign | FunctionDecl | Export | IfElse
 type CommandSeq = list[Command]
@@ -572,12 +579,13 @@ grammar = r"""
     equal: expr "==" expr
     not_equal: expr "!=" expr  
 
-    ?expr: concat | mono | let
+    ?expr: concat | mono | let | ifelse_expr
     ?mono: step | transpose | paren | var | changetime | funapply | repeat
     ?paren: "(" expr ")"
     var: IDENTIFIER
 
     let: "LET" IDENTIFIER "=" expr "IN" expr
+    ifelse_expr: expr "IF" boolean "ELSE" expr
 
     funapply: IDENTIFIER "(" arg_list ")"
     arg_list: expr ("," expr)*
@@ -826,6 +834,10 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
         case Tree(data="let", children=[Token(type="IDENTIFIER", value=var), value, expr]):
             return Let(var=Var(name=var), value=transform_parse_expr_tree(value), expr=transform_parse_expr_tree(expr))
 
+        case Tree(data="ifelse_expr", children=[if_true, boolean, if_false]):
+            return IfElseExpr(cond=transform_parse_boolean_tree(boolean), if_true=transform_parse_expr_tree(if_true),
+                              if_false=transform_parse_expr_tree(if_false))
+
         case Tree(data="step", children=[subtree]):
             # A step is a single harmony or a pause, but internally is already
             # regarded as a song with that single harmony/pause, i.e. [A4] is already
@@ -1032,6 +1044,12 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
                     raise TypeError(f"{function_name} is not a function.")
             else:
                 raise NameError(f"Function '{function_name}' is not defined")
+
+        case IfElseExpr(cond=cond, if_true=if_true, if_false=if_false):
+            if evaluate_bool(cond, env, state):
+                return evaluate_expr(if_true, env, state)
+            else:
+                return evaluate_expr(if_false, env, state)
 
         case _:
             raise TypeError(
