@@ -6,13 +6,8 @@
     <i>A Musical Interpreter for Chord Interpretation and Orchestration, completely written in Python 3.12!</i>
     <br>
     <br>
-    <a href="mailto:g.videtta1@studenti.unipi.it">
-        <img src="https://img.shields.io/badge/-Gabriel%20Antonio%20Videtta-152ba3?style=pflat-square&labelColor=152ba3&logo=mail.ru&logoColor=white&link=mailto:g.videtta1@studenti.unipi.it" alt="Gabriel Antonio Videtta"/>
-    </a>
-    •
-    <a href="mailto:a.baccioli2@studenti.unipi.it">
-        <img src="https://img.shields.io/badge/-Avio%20Baccioli-152ba3?style=pflat-square&labelColor=152ba3&logo=mail.ru&logoColor=white&link=mailto:a.baccioli2@studenti.unipi.it" alt="Avio Baccioli"/>
-    </a>
+    <a href="mailto:g.videtta1@studenti.unipi.it"><img src="https://img.shields.io/badge/-Gabriel%20Antonio%20Videtta-152ba3?style=flat-square&labelColor=152ba3&logo=mail.ru&logoColor=white" alt="Gabriel Antonio Videtta"/></a>
+    <a href="mailto:a.baccioli2@studenti.unipi.it"><img src="https://img.shields.io/badge/-Avio%20Baccioli-152ba3?style=flat-square&labelColor=152ba3&logo=mail.ru&logoColor=white" alt="Avio Baccioli"/></a>
 </p>
 
 **MICIO** ([/ˈmitʃo/](https://ipa-reader.com/?text=%CB%88mit%CA%83o&voice=Nicole)) is a Python-based musical interpreter designed for chord interpretation and orchestration. It allows you to define, manipulate, and export musical compositions in the WAVE format using a simple and intuitive syntax. The goal is to make it easy to create, manipulate, and combine musical elements like notes, harmonies, and timings.
@@ -82,12 +77,13 @@ to a variable; a function declaration; or an `EXPORT` statement, used to export 
 
 MICIO supports line comments, which begin with `//`.
 
-MICIO ignores whitespaces and employs the following grammar:
+MICIO ignores whitespaces and employs the following [Lark](https://github.com/lark-parser/lark) grammar:
 
 ```text
     command_seq: command (";" command?)*
-    ?command: assign | fundecl | export | ifelse
+    ?command: const_assign | assign | fundecl | export | ifelse
 
+    const_assign: "CONST" IDENTIFIER "=" expr | "CONST" IDENTIFIER ":=" expr
     assign: IDENTIFIER "=" expr | IDENTIFIER ":=" expr
     
     fundecl: "FUNCTION" IDENTIFIER "(" params ")" "=" expr | "FUNCTION" IDENTIFIER "(" params ")" ":=" expr
@@ -96,23 +92,26 @@ MICIO ignores whitespaces and employs the following grammar:
     export: "EXPORT" expr "TO" "\"" FILENAME "\""
     FILENAME: /[a-zA-Z0-9_\/.-]+/
 
-    ifelse: "IF" boolean "{" command_seq "}" ("ELSE" "{" command_seq "}")?
+    ifelse: "IF" boolean "THEN" command_seq ("ELSE" command_seq)? "ENDIF"
     ?boolean: equal | not_equal
     equal: expr "==" expr
-    not_equal: expr "!=" expr  
+    not_equal: expr "!=" expr
 
-    ?expr: concat | mono | let
-    ?mono: step | transpose | paren | var | changetime | funapply
+    ?expr: concat | mono | let | ifelse_expr | map
+    ?mono: step | transpose | paren | var | changetime | funapply | repeat
     ?paren: "(" expr ")"
     var: IDENTIFIER
 
     let: "LET" IDENTIFIER "=" expr "IN" expr
+    ifelse_expr: expr "IF" boolean "ELSE" expr
+    map: "MAP" IDENTIFIER "IN" expr "=>" expr
 
     funapply: IDENTIFIER "(" arg_list ")"
     arg_list: expr ("," expr)*
 
     transpose: "TRANSPOSE(" expr "," TRANSPOSE_VALUE ")"
     changetime: "CHANGETIME(" expr "," time ")"
+    repeat: "REPEAT(" expr "," NUMBER ")"
 
     step: harmony | pause
     
@@ -227,13 +226,15 @@ EXPR_1 -> ... -> EXPR_2
 
 where `EXPR_i` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
 
+The constant `EMPTY` represents the empty song object (i.e., a song with no harmonies nor pauses).
+
 #### Examples
 
 - `[A4, B4] -> PAUSE(1) -> A4`: generates a song with the harmony `[A4, B4]`, then a pause of one second, and finally a note `A` in the
     4th octave.
 - `PAUSE(1) -> x -> A4`: plays a song that has a pause of one second, then the song stored in `x`, and then one note `A` in the 4th octave.
 
-### TRANSPOSE and CHANGETIME
+### TRANSPOSE, CHANGETIME and REPEAT
 
 The `TRANSPOSE` operation shifts all notes in a song by a specified number of semitones. Positive values transpose the notes up, while negative values transpose them down. It is specified as follows:
 
@@ -241,7 +242,7 @@ The `TRANSPOSE` operation shifts all notes in a song by a specified number of se
 TRANSPOSE(EXPR, SEMITONES)
 ```
 
-where `SEMITONES` is an integer and `EXPR` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
+where `SEMITONES` is an integer and `EXPR` is an expression.
 
 The `CHANGETIME` operation changes the duration of all notes and pauses in a song by a specified factor. This allows you to speed up or slow down the timing of a composition. It is specified as follows:
 
@@ -249,12 +250,21 @@ The `CHANGETIME` operation changes the duration of all notes and pauses in a son
 CHANGETIME(EXPR, FACTOR)
 ```
 
-where `FACTOR` is a positive integer of a fraction in the form `n/d` and  `EXPR` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
+where `FACTOR` is a positive integer of a fraction in the form `n/d` and  `EXPR` is an expression.
+
+The `REPEAT` operation simply repeats an expression multiple time. It is specified as follows:
+
+```text
+REPEAT(EXPR, NUMBER_OF_TIMES)
+```
+
+where `NUMBER_OF_TIMES` is a positive integer and `EXPR` is an expression.
 
 #### Examples
 
 - `TRANSPOSE(A4, 2)`: transposes `A4` by 2 semitones.
 - `CHANGETIME((A4, 2), 0.5)`: halves the duration of `(A4, 2)` (which then simply becomes `A4`).
+- `REPEAT(A4, 3)`: evaluates to `A4 -> A4 -> A4`.
 
 ### LET
 
@@ -302,11 +312,18 @@ Commands in MICIO are separated by a semicolon `;`.
 You can assign an expression with `VAR := EXPR` or `VAR = EXPR`, where `VAR`
 is a valid identifier in the grammar and `EXPR` is an expression for a `Song`.
 
+You can define constants using either `CONST VAR := EXPR` or `CONST VAR = EXPR`.
+Keep in mind that you can't define a constant with the same name as an existing
+variable, nor can you redefine an existing constant.
+
+The identifier `EMPTY` is already employed to define the empty song object.
+
 #### Examples
 
 - `x := A4`: assigns the song `A4` to the variable `x`.
 - `scale := C4 -> D4 -> E4 -> F4 -> G4 -> A4 -> B4 -> C5`: assign the C major scale to `scale`.
 -  `y := F(x)`: assigns the evaluation of `F` with argument `x` to the variable `y`.
+- `CONST x := A4`: defines the constant `x` with value `A4`.
 
 ### Function Declarations
 
