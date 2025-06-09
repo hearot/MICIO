@@ -72,8 +72,8 @@ options:
 
 The foundational building block of MICIO is the only existing type, namely the `Song` type. A `Song` is simply a collection of `Harmony`'s and
 `Pause`'s, played sequentially. A `Harmony` is a collection of `Note`s. The most important binary operation is the concatenation,
-which makes a `Song` follow another one. Two built-in unary
-operations are also provided: `TRANSPOSE` to transpose by a given number of semitones, and  `CHANGETIME` to speed up or slow down a `Song`. A `LET` environment is provided, which binds a value to a variable within a scope.
+which makes a `Song` follow another one. Three built-in unary
+operations are also provided: `TRANSPOSE` to transpose by a given number of semitones, `CHANGETIME` to speed up or slow down a `Song`, and `REPEAT` to repeat a `Song` a given number of times. A `LET` environment is provided, which binds a value to a variable within a scope.
 
 A code consists of a sequence of commands executed sequentially. Each command may be an assignment, which binds a `Song`
 to a variable; a function declaration; or an `EXPORT` statement, used to export a `Song` to WAVE file.
@@ -322,7 +322,7 @@ MAP iter_variable IN EXPR => RETURN_EXPR
 
 #### Examples
 
-- `MAP y IN x => TRANSPOSE(y, 2)`: produces a new song where each step of `scale` is transposed up by 2 semitones; equivalent to `TRANSPOSE(x, 2)`.
+- `MAP y IN x => TRANSPOSE(y, 2)`: produces a new song where each step of `x` is transposed up by 2 semitones; equivalent to `TRANSPOSE(x, 2)`.
 - `MAP y IN x => y -> y`: produces a new song where each step is repeated twice; cf. `example_9.micio` under *examples*.
 
 ## If-Else (for expressions)
