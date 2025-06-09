@@ -1,3 +1,8 @@
+// Enemy by Imagine Dragons
+
+// Doubles each entry in a song.
+// e.g., A4 -> B4 becomes
+// A4 -> A4 -> B4 -> B4
 FUNCTION DOUBLE(x) = x -> x;
 
 r = DOUBLE((D5, 1/3)) -> DOUBLE((D5, 1/6)) -> B4;
@@ -7,6 +12,11 @@ t = (B5, 1/2) -> PAUSE(1/2) -> (A5, 1/2) ->
     PAUSE(1/2) -> (G5, 1/2) -> PAUSE(1/2) ->
     (D5, 1/2) -> (F#5, 2);
 
+// For each step `y` in `t`, produces
+// the union of `y` and its transposed version.
+// e.g., if t was A4 -> B4, the result would
+// be (A4 + TRANSPOSE(A4, -5)) ->
+// (B4 + TRANSPOSE(B4, -5)).
 t = MAP y IN t => y + TRANSPOSE(y, -5);
 
 u = [(B4, 1/2) , (F#4, 1/2), (B3, 1/2)] ->

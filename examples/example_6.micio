@@ -1,7 +1,7 @@
 FUNCTION ADD_INTRO(x) := REPEAT(A4 -> B4, 2) -> x;
 
-x := (A4, 1/2);
-x := C4; // y now points to C4 instead of (A4, 1/2) 
+y := (A4, 1/2);
+y := C4; // y now points to C4 instead of (A4, 1/2) 
 
 EXPORT
     ADD_INTRO(y) -> B4 -> ADD_INTRO(CHANGETIME(y, 2))

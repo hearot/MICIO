@@ -71,7 +71,8 @@ options:
 # Syntax reference
 
 The foundational building block of MICIO is the only existing type, namely the `Song` type. A `Song` is simply a collection of `Harmony`'s and
-`Pause`'s, played sequentially. A `Harmony` is a collection of `Note`s. The most important binary operation is the concatenation,
+`Pause`'s, played sequentially. We will refer to either a `Harmony` or
+a `Pause` as a `Step`. A `Harmony` is a collection of `Note`s. The most important binary operation is the concatenation (`->`),
 which makes a `Song` follow another one. 
 
 - Three built-in
@@ -224,6 +225,27 @@ where `TIME` represents the duration in seconds and can either be:
 - a fraction in the form `n/d` (e.g. `1/2`).
 
 The duration is specified in the same way as for a note, and it represents how long the pause lasts.
+
+### Union of Harmonies or Pauses
+
+The union operation allows you to combine two harmonies
+or two pauses into a single `Step`, with the following syntax:
+
+```text
+EXPR1 + EXPR2
+```
+
+where `EXPR1` and `EXPR2` are two expressions.
+
+When both operands are harmonies, the result is a harmony containing all notes from both. When both operands are pauses, the result is a pause whose duration is the maximum of the two.
+
+The union operation can only be applied between songs that each contain exactly one `Step`. Mixing a harmony and a pause is not allowed!
+
+#### Examples
+
+- `[A4, C5] + [E4]`: produces the harmony `[A4, C5, E4]`.
+- `PAUSE(1) + PAUSE(2)`: produces a pause of two seconds, i.e., `PAUSE(2)`.
+- See `example_10.micio` under *examples*.
 
 ### Defining and Concatenating Songs
 
@@ -440,4 +462,5 @@ Under the *examples* folder you will find the following examples:
 - `example_4.micio` generates the refrain of *Ode to Joy* by Ludwig van Beethoven.
 - `example_6.micio` showcases the usage of assignment, functions and comments.
 - `example_7.micio` showcases the usage of *if-else* statements.
-- `example_8.micio` and `example_9.micio`showcase the usage of `MAP`.
+- `example_8.micio` and `example_9.micio` showcase the usage of `MAP`.
+- `example_10.micio` generates the intro and refrain of *Enemy* by Imagine Dragons, showcasing the usage of `MAP` together with the union operation (`+`) for harmonies and pauses.
