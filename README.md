@@ -103,11 +103,12 @@ MICIO ignores whitespaces and employs the following [Lark](https://github.com/la
     FILENAME: /[a-zA-Z0-9_\/.-]+/
 
     ifelse: "IF" boolean "THEN" command_seq ("ELSE" command_seq)? "ENDIF"
-    ?boolean: equal | not_equal
+    ?boolean: equal | not_equal | paren_bool
+    ?paren_bool: "(" boolean ")"
     equal: expr "==" expr
     not_equal: expr "!=" expr
 
-    ?expr: concat | mono | let | ifelse_expr | map
+    ?expr: concat | union | mono | let | ifelse_expr | map
     ?mono: step | transpose | paren | var | changetime | funapply | repeat
     ?paren: "(" expr ")"
     var: IDENTIFIER
@@ -135,6 +136,7 @@ MICIO ignores whitespaces and employs the following [Lark](https://github.com/la
     pause: "PAUSE(" time ")"
 
     concat: mono "->" expr | mono ">" expr
+    union: mono "+" expr
     
     time: fraction | NUMBER
     fraction: NUMBER "/" NUMBER
