@@ -21,6 +21,7 @@ The main MICIO script fully complies with [mypy](https://github.com/python/mypy)
     - [Defining Notes](#defining-notes)
     - [Defining Harmonies](#defining-harmonies)
     - [Defining Pauses](#defining-pauses)
+    - [Union of Harmonies or Pauses](#union-of-harmonies-or-pauses)
     - [Defining and Concatenating Songs](#defining-and-concatenating-songs)
     - [TRANSPOSE, CHANGETIME and REPEAT](#transpose-changetime-and-repeat)
     - [LET](#let)
@@ -32,7 +33,7 @@ The main MICIO script fully complies with [mypy](https://github.com/python/mypy)
     - [Function Declarations](#function-declarations)
     - [If-Else (for commands)](#if-else-for-commands)
     - [EXPORT](#export)
-- [Basic Examples](#basic-examples)
+- [Basic examples](#basic-examples)
 
 ## Installation
 
