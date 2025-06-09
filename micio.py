@@ -210,6 +210,45 @@ class Song:
                 raise TypeError(
                     f"The right operand in Song + ... is neither a Song, nor a Harmony, nor a Pause")
 
+    def __matmul__(self, other: Song) -> Song:
+        """
+        Performs the union of two steps under the form of a song,
+        combining either their harmonies or their pauses.
+        
+        If both songs contain a Harmony, the result is a Harmony
+        with all notes combined. If both songs contain a Pause,
+        the result is a Pause with the maximum duration.
+        Mixing a Harmony and a Pause is not allowed.
+
+        Args:
+            other (Song): Another Song instance to union with.
+
+        Returns:
+            Song: A new Song instance resulting from the union operation.
+        """
+        if len(self.steps) > 1 or len(other.steps) > 1:
+            raise TypeError(
+                "Union is only supported between songs with a single step each (either a single Harmony or a single Pause).")
+
+        if len(self.steps) == 0 or len(other.steps) == 0:
+            raise TypeError("Cannot perform union with an empty song.")
+
+        if isinstance(self.steps[0], Harmony):
+            if isinstance(other.steps[0], Harmony):
+                return Song.empty() + Harmony(notes=self.steps[0].notes + other.steps[0].notes)
+            else:
+                raise TypeError(
+                    "Cannot union a Harmony with a Pause. Both songs must contain a Harmony as their single step.")
+        elif isinstance(self.steps[0], Pause):
+            if isinstance(other.steps[0], Pause):
+                return Song.empty() + Pause(time=max(self.steps[0].time, other.steps[0].time))
+            else:
+                raise TypeError(
+                    "Cannot union a Pause with a Harmony. Both songs must contain a Pause as their single step.")
+        else:
+            raise TypeError(
+                f"Cannot perform union on unsupported step type: {type(self.steps[0])}.")
+
     def __eq__(self, other: object) -> bool:
         """
         Checks equality between this Song and another object.
@@ -280,6 +319,23 @@ class Concat:
     """
     A dataclass representing the concatenation of two musical expressions.
     This allows combining different parts of a song.
+
+    Attributes:
+        left (Expression): The first part of the expression.
+        right (Expression): The second part of the expression.
+    """
+    left: Expression
+    right: Expression
+
+
+@dataclass
+class Union:
+    """
+    A dataclass representing the union of two harmonies or two pauses.
+    Only harmonies can be unioned with harmonies, and only pauses with pauses.
+    The result of PAUSE(X) + PAUSE(Y) is PAUSE(max{X, Y}),
+    while the result of [NOTE1, NOTE2, ..., NOTEn] + [NOTEn+1, ..., NOTEm]
+    is [NOTE1, NOTE2, ..., NOTEn, NOTEn+1, ..., NOTEm].
 
     Attributes:
         left (Expression): The first part of the expression.
@@ -772,11 +828,12 @@ grammar = r"""
     FILENAME: /[a-zA-Z0-9_\/.-]+/
 
     ifelse: "IF" boolean "THEN" command_seq ("ELSE" command_seq)? "ENDIF"
-    ?boolean: equal | not_equal
+    ?boolean: equal | not_equal | paren_bool
+    ?paren_bool: "(" boolean ")"
     equal: expr "==" expr
     not_equal: expr "!=" expr
 
-    ?expr: concat | mono | let | ifelse_expr | map
+    ?expr: concat | union | mono | let | ifelse_expr | map
     ?mono: step | transpose | paren | var | changetime | funapply | repeat
     ?paren: "(" expr ")"
     var: IDENTIFIER
@@ -804,6 +861,7 @@ grammar = r"""
     pause: "PAUSE(" time ")"
 
     concat: mono "->" expr | mono ">" expr
+    union: mono "+" expr
     
     time: fraction | NUMBER
     fraction: NUMBER "/" NUMBER
@@ -937,6 +995,9 @@ def transform_parse_expr_tree(tree: Tree) -> Expression:
     match tree:
         case Tree(data="concat", children=[left, right]):
             return Concat(left=transform_parse_expr_tree(left), right=transform_parse_expr_tree(right))
+
+        case Tree(data="union", children=[left, right]):
+            return Union(left=transform_parse_expr_tree(left), right=transform_parse_expr_tree(right))
 
         case Tree(data="let", children=[Token(type="IDENTIFIER", value=var), value, expr]):
             return Let(var=Var(name=var), value=transform_parse_expr_tree(value), expr=transform_parse_expr_tree(expr))
@@ -1121,6 +1182,9 @@ def evaluate_expr(ast: Expression, env: Environment, state: State) -> Song:
 
         case Concat(left=left, right=right):
             return evaluate_expr(left, env, state) + evaluate_expr(right, env, state)
+
+        case Union(left=left, right=right):
+            return evaluate_expr(left, env, state) @ evaluate_expr(right, env, state)
 
         case Transpose(song=music, value=value):
             return transpose(evaluate_expr(music, env, state), value)
