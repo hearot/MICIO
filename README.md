@@ -231,8 +231,7 @@ The duration is specified in the same way as for a note, and it represents how l
 
 ### Union of Harmonies or Pauses
 
-The union operation allows you to combine two harmonies
-or two pauses into a single `Step`, with the following syntax:
+The union operation allows you to combine songs that each contain exactly one `Step` (i.e., a `Harmony` or a `Pause`), with the following syntax:
 
 ```text
 EXPR1 + EXPR2
@@ -242,7 +241,7 @@ where `EXPR1` and `EXPR2` are two expressions.
 
 When both operands are harmonies, the result is a harmony containing all notes from both. When both operands are pauses, the result is a pause whose duration is the maximum of the two.
 
-The union operation can only be applied between songs that each contain exactly one `Step`. Mixing a harmony and a pause is not allowed!
+Mixing a harmony and a pause is not allowed!
 
 #### Examples
 
