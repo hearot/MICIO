@@ -72,11 +72,16 @@ options:
 
 The foundational building block of MICIO is the only existing type, namely the `Song` type. A `Song` is simply a collection of `Harmony`'s and
 `Pause`'s, played sequentially. A `Harmony` is a collection of `Note`s. The most important binary operation is the concatenation,
-which makes a `Song` follow another one. Three built-in unary
-operations are also provided: `TRANSPOSE` to transpose by a given number of semitones, `CHANGETIME` to speed up or slow down a `Song`, and `REPEAT` to repeat a `Song` a given number of times. A `LET` environment is provided, which binds a value to a variable within a scope.
+which makes a `Song` follow another one. 
+
+- Three built-in
+operations are also provided: `TRANSPOSE` to transpose by a given number of semitones, `CHANGETIME` to speed up or slow down a `Song`, and `REPEAT` to repeat a `Song` a given number of times.
+- A `LET` environment is provided, which binds a value to a variable within a scope.
+- A `MAP` operation is provided as well, to apply a transformation to each step (harmony or pause) of a song, producing a new song where each step is replaced by the result of the given expression.
+- Finally an `IF-ELSE` expression is provided too, allowing you to choose between two expressions based on a condition.
 
 A code consists of a sequence of commands executed sequentially. Each command may be an assignment, which binds a `Song`
-to a variable; a function declaration; or an `EXPORT` statement, used to export a `Song` to WAVE file.
+to a variable or to a constant; a function declaration; an `IF-ELSE`, for conditional execution; or an `EXPORT` statement, used to export a `Song` to WAVE file.
 
 MICIO supports line comments, which begin with `//`.
 
@@ -229,7 +234,7 @@ built as follows:
 EXPR_1 -> ... -> EXPR_2
 ```
 
-where `EXPR_i` is a harmony, a pause, a song, a `LET` statement, a unary operation or a variable.
+where `EXPR_i` is an expression.
 
 The constant `EMPTY` is a reserved constant which represents the empty song object (i.e., a song with no harmonies nor pauses).
 
